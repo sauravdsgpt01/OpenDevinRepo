@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from openhands.llm.llm_registry import LLMRegistry
 
 if TYPE_CHECKING:
-    from litellm import ChatCompletionToolParam
+    from litellm import ChatCompletionToolParam  # type: ignore[import-not-found]
 
     from openhands.events.action import Action
     from openhands.llm.llm import ModelResponse
@@ -223,6 +223,15 @@ class CodeActAgent(Agent):
         }
         response = self.llm.completion(**params)
         logger.debug(f'Response from LLM: {response}')
+
+        # Optional: Fleet session logging (streams LLM calls to Fleet dashboard).
+        try:
+            exporter = getattr(self, 'fleet_session_exporter', None)
+            if exporter is not None and getattr(exporter, 'enabled', False):
+                exporter.log_llm_call(history=messages, response=response)
+        except Exception:
+            pass
+
         actions = self.response_to_actions(response)
         logger.debug(f'Actions after response_to_actions: {actions}')
         for action in actions:

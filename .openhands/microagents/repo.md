@@ -51,7 +51,27 @@ Frontend:
 - Testing:
   - Run tests: `npm run test`
   - To run specific tests: `npm run test -- -t "TestName"`
+  - To run a specific test file: `npm run test -- __tests__/path/to/test.tsx`
   - Our test framework is vitest
+- E2E/Integration Testing with Playwright:
+  - Playwright can be used for end-to-end testing of the frontend UI
+  - Install Playwright: `npm install -D playwright && npx playwright install chromium`
+  - Run the frontend with mock API: `npm run dev:mock`
+  - Mock handlers are located in `frontend/src/mocks/` directory
+  - Example test script using Playwright:
+    ```typescript
+    import { chromium } from 'playwright';
+
+    async function testFeature() {
+      const browser = await chromium.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.goto('http://localhost:3001');
+      // Interact with the page using Playwright API
+      await browser.close();
+    }
+    ```
+  - Run TypeScript test scripts with: `npx tsx test-script.ts`
+  - For video recording, use: `const context = await browser.newContext({ recordVideo: { dir: './videos' } });`
 - Building:
   - Build for production: `npm run build`
 - Environment Variables:

@@ -21,7 +21,7 @@ export function RecentConversations() {
   } = usePaginatedConversations(10);
 
   // Set up infinite scroll
-  const scrollContainerRef = useInfiniteScroll({
+  const { setRef: setScrollContainerRef } = useInfiniteScroll({
     hasNextPage: !!hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -88,8 +88,11 @@ export function RecentConversations() {
         displayedConversations &&
         displayedConversations.length > 0 && (
           <div className="flex flex-col">
-            <div className="transition-all duration-300 ease-in-out overflow-y-auto custom-scrollbar">
-              <div ref={scrollContainerRef} className="flex flex-col">
+            <div
+              ref={setScrollContainerRef}
+              className="transition-all duration-300 ease-in-out overflow-y-auto custom-scrollbar"
+            >
+              <div className="flex flex-col">
                 {displayedConversations.map((conversation) => (
                   <RecentConversation
                     key={conversation.conversation_id}

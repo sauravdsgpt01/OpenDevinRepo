@@ -29,7 +29,8 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
 const MOCK_USER_PREFERENCES: {
   settings: Settings | null;
 } = {
-  settings: null,
+  // Initialize with default settings to avoid the settings modal popup during testing
+  settings: { ...MOCK_DEFAULT_USER_SETTINGS },
 };
 
 // Reset mock

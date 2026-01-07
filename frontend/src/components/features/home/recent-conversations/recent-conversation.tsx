@@ -24,7 +24,10 @@ export function RecentConversation({ conversation }: RecentConversationProps) {
       to={`/conversations/${conversation.conversation_id}`}
       className="flex flex-col gap-1 p-[14px] cursor-pointer w-full rounded-lg hover:bg-[#5C5D62] transition-all duration-300 text-left"
     >
-      <div className="flex items-center gap-2 pl-1">
+      <div
+        data-testid="conversation-card"
+        className="flex items-center gap-2 pl-1"
+      >
         <ConversationStatusIndicator conversationStatus={conversation.status} />
         <span className="text-xs text-white leading-6 font-normal">
           {conversation.title}

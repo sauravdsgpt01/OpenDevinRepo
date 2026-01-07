@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 
 interface UseInfiniteScrollOptions {
   hasNextPage: boolean;
@@ -13,30 +13,29 @@ export const useInfiniteScroll = ({
   fetchNextPage,
   threshold = 100,
 }: UseInfiniteScrollOptions) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
   const handleScroll = useCallback(() => {
-    if (!containerRef.current || isFetchingNextPage || !hasNextPage) {
+    if (!container || isFetchingNextPage || !hasNextPage) {
       return;
     }
 
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = container;
     const isNearBottom = scrollTop + clientHeight >= scrollHeight - threshold;
 
     if (isNearBottom) {
       fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, threshold]);
+  }, [container, hasNextPage, isFetchingNextPage, fetchNextPage, threshold]);
 
   useEffect(() => {
-    const container = containerRef.current;
     if (!container) return undefined;
 
     container.addEventListener("scroll", handleScroll);
     return () => {
       container.removeEventListener("scroll", handleScroll);
     };
-  }, [handleScroll]);
+  }, [container, handleScroll]);
 
-  return containerRef;
+  return { setRef: setContainer };
 };

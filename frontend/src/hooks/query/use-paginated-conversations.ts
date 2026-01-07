@@ -27,5 +27,6 @@ export const usePaginatedConversations = (limit: number = 20) => {
     enabled: !!userIsAuthenticated,
     getNextPageParam: (lastPage) => lastPage.next_page_id,
     initialPageParam: undefined as string | undefined,
+    staleTime: 1000 * 60 * 5, // 5 minutes - prevents unnecessary refetches when reopening panel
   });
 };

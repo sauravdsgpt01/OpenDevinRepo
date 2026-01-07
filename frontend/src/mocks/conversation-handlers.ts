@@ -1,63 +1,116 @@
 import { http, delay, HttpResponse } from "msw";
 import { Conversation, ResultSet } from "#/api/open-hands.types";
 
-const conversations: Conversation[] = [
-  {
-    conversation_id: "1",
-    title: "My New Project",
-    selected_repository: null,
-    git_provider: null,
-    selected_branch: null,
-    last_updated_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    status: "RUNNING",
-    runtime_status: "STATUS$READY",
-    url: null,
-    session_api_key: null,
-  },
-  {
-    conversation_id: "2",
-    title: "Repo Testing",
-    selected_repository: "octocat/hello-world",
-    git_provider: "github",
-    selected_branch: null,
-    last_updated_at: new Date(
-      Date.now() - 2 * 24 * 60 * 60 * 1000,
-    ).toISOString(),
-    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "STOPPED",
-    runtime_status: null,
-    url: null,
-    session_api_key: null,
-  },
-  {
-    conversation_id: "3",
-    title: "Another Project",
-    selected_repository: "octocat/earth",
-    git_provider: null,
-    selected_branch: "main",
-    last_updated_at: new Date(
-      Date.now() - 5 * 24 * 60 * 60 * 1000,
-    ).toISOString(),
-    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "STOPPED",
-    runtime_status: null,
-    url: null,
-    session_api_key: null,
-  },
-];
+// Generate 50 mock conversations for testing pagination
+const generateMockConversations = (): Conversation[] => {
+  const conversations: Conversation[] = [];
+  const projectNames = [
+    "API Gateway",
+    "User Dashboard",
+    "Payment Service",
+    "Auth Module",
+    "Data Pipeline",
+    "ML Model Training",
+    "Frontend Redesign",
+    "Database Migration",
+    "CI/CD Setup",
+    "Security Audit",
+    "Performance Optimization",
+    "Bug Fixes",
+    "Feature Development",
+    "Code Review",
+    "Documentation",
+    "Testing Suite",
+    "Deployment Script",
+    "Monitoring Setup",
+    "Logging Service",
+    "Cache Layer",
+  ];
+  const repos = [
+    "octocat/hello-world",
+    "octocat/earth",
+    "myorg/backend",
+    "myorg/frontend",
+    "myorg/shared-libs",
+    null,
+  ];
+  const statuses: Array<"RUNNING" | "STOPPED"> = ["RUNNING", "STOPPED"];
+
+  for (let i = 1; i <= 50; i += 1) {
+    const daysAgo = Math.floor(Math.random() * 30);
+    const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    const isRunning = i <= 3 && Math.random() > 0.5;
+
+    conversations.push({
+      conversation_id: i.toString(),
+      title: `${projectNames[i % projectNames.length]} #${i}`,
+      selected_repository: repos[i % repos.length],
+      git_provider: repos[i % repos.length] ? "github" : null,
+      selected_branch: repos[i % repos.length] ? "main" : null,
+      last_updated_at: date.toISOString(),
+      created_at: date.toISOString(),
+      status: isRunning ? "RUNNING" : statuses[i % 2],
+      runtime_status: isRunning ? "STATUS$READY" : null,
+      url: null,
+      session_api_key: null,
+    });
+  }
+
+  // Sort by last_updated_at descending (most recent first)
+  return conversations.sort(
+    (a, b) =>
+      new Date(b.last_updated_at).getTime() -
+      new Date(a.last_updated_at).getTime(),
+  );
+};
+
+const conversations = generateMockConversations();
 
 const CONVERSATIONS = new Map<string, Conversation>(
   conversations.map((c) => [c.conversation_id, c]),
 );
 
+// Keep a sorted array for pagination
+const SORTED_CONVERSATIONS = conversations;
+
 export const CONVERSATION_HANDLERS = [
-  http.get("/api/conversations", async () => {
-    const values = Array.from(CONVERSATIONS.values());
+  http.get("/api/conversations", async ({ request }) => {
+    const url = new URL(request.url);
+    const pageId = url.searchParams.get("page_id");
+    const limit = parseInt(url.searchParams.get("limit") || "20", 10);
+
+    // Find the starting index based on page_id
+    let startIndex = 0;
+    if (pageId) {
+      const pageIndex = SORTED_CONVERSATIONS.findIndex(
+        (c) => c.conversation_id === pageId,
+      );
+      if (pageIndex !== -1) {
+        startIndex = pageIndex;
+      }
+    }
+
+    // Get the page of results
+    const pageResults = SORTED_CONVERSATIONS.slice(
+      startIndex,
+      startIndex + limit,
+    );
+
+    // Determine next_page_id
+    const nextIndex = startIndex + limit;
+    const nextPageId =
+      nextIndex < SORTED_CONVERSATIONS.length
+        ? SORTED_CONVERSATIONS[nextIndex].conversation_id
+        : null;
+
     const results: ResultSet<Conversation> = {
-      results: values,
-      next_page_id: null,
+      results: pageResults,
+      next_page_id: nextPageId,
     };
+
+    // Add a small delay to simulate network latency
+    await delay(200);
+
     return HttpResponse.json(results);
   }),
 

@@ -69,7 +69,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   const { mutate: updateConversation } = useUpdateConversation();
 
   // Set up infinite scroll
-  const scrollContainerRef = useInfiniteScroll({
+  const { setRef: setScrollContainerRef } = useInfiniteScroll({
     hasNextPage: !!hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -132,10 +132,9 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   return (
     <div
       ref={(node) => {
-        // TODO: Combine both refs somehow
+        // Combine both refs
         if (ref.current !== node) ref.current = node;
-        if (scrollContainerRef.current !== node)
-          scrollContainerRef.current = node;
+        setScrollContainerRef(node);
       }}
       data-testid="conversation-panel"
       className="w-full md:w-[400px] h-full border border-[#525252] bg-[#25272D] rounded-lg overflow-y-auto absolute custom-scrollbar-always"

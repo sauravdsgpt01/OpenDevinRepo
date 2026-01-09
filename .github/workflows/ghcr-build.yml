@@ -93,7 +93,9 @@ jobs:
       contents: read
       packages: write
     needs: define-matrix
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         base_image: ${{ fromJson(needs.define-matrix.outputs.base_image) }}
     steps:
@@ -257,6 +259,7 @@ jobs:
     name: RT Unit Tests (Root)
     needs: [ghcr_build_runtime, define-matrix]
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -320,7 +323,9 @@ jobs:
     name: RT Unit Tests (openhands)
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [ghcr_build_runtime, define-matrix]
+    timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
         base_image: ${{ fromJson(needs.define-matrix.outputs.base_image) }}
     steps:

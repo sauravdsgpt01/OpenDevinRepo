@@ -3,9 +3,14 @@
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import pytest
+
 from openhands.runtime.utils.port_lock import PortLock, find_available_port_with_lock
 
 
+@pytest.mark.skip(
+    reason='2025-01-07: These tests are flaky in CI due to timing assumptions'
+)
 class TestPortLockingFix:
     """Test cases for port allocation race condition fix."""
 

@@ -11,6 +11,8 @@ class SandboxStatus(Enum):
     RUNNING = 'RUNNING'
     PAUSED = 'PAUSED'
     ERROR = 'ERROR'
+    DELETING = 'DELETING'
+    """Deleting - sandbox is being deleted in the background"""
     MISSING = 'MISSING'
     """Missing - possibly deleted"""
 

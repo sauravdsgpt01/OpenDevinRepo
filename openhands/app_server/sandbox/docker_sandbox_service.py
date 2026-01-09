@@ -39,6 +39,7 @@ from openhands.app_server.utils.docker_utils import (
 _logger = logging.getLogger(__name__)
 SESSION_API_KEY_VARIABLE = 'OH_SESSION_API_KEYS_0'
 WEBHOOK_CALLBACK_VARIABLE = 'OH_WEBHOOKS_0_BASE_URL'
+DELETING_LABEL = 'openhands.deleting'  # Label to mark containers as being deleted
 
 
 class VolumeMount(BaseModel):
@@ -81,6 +82,9 @@ class DockerSandboxService(SandboxService):
     extra_hosts: dict[str, str] = field(default_factory=dict)
     docker_client: docker.DockerClient = field(default_factory=get_docker_client)
 
+    # Class-level set to track containers being deleted (shared across all instances)
+    _deleting_containers: set[str] = set()
+
     def _find_unused_port(self) -> int:
         """Find an unused port on the host machine."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -115,10 +119,26 @@ class DockerSandboxService(SandboxService):
                 result[env_var] = None
         return result
 
+    def _is_container_deleting(self, container) -> bool:
+        """Check if container is marked as deleting."""
+        return container.name in self._deleting_containers
+
+    def _mark_container_deleting(self, container_name: str) -> None:
+        """Mark container as deleting."""
+        self._deleting_containers.add(container_name)
+
+    def _unmark_container_deleting(self, container_name: str) -> None:
+        """Remove container from deleting set."""
+        self._deleting_containers.discard(container_name)
+
     async def _container_to_sandbox_info(self, container) -> SandboxInfo | None:
         """Convert Docker container to SandboxInfo."""
-        # Convert Docker status to runtime status
-        status = self._docker_status_to_sandbox_status(container.status)
+        # Check if container is marked as deleting
+        if self._is_container_deleting(container):
+            status = SandboxStatus.DELETING
+        else:
+            # Convert Docker status to runtime status
+            status = self._docker_status_to_sandbox_status(container.status)
 
         # Parse creation time
         created_str = container.attrs.get('Created', '')
@@ -170,7 +190,9 @@ class DockerSandboxService(SandboxService):
         return SandboxInfo(
             id=container.name,
             created_by_user_id=None,
-            sandbox_spec_id=container.image.tags[0],
+            sandbox_spec_id=container.image.tags[0]
+            if container.image.tags
+            else 'unknown',
             status=status,
             session_api_key=session_api_key,
             exposed_urls=exposed_urls,
@@ -224,7 +246,8 @@ class DockerSandboxService(SandboxService):
                     sandbox_info = await self._container_to_checked_sandbox_info(
                         container
                     )
-                    if sandbox_info:
+                    # Filter out sandboxes that are being deleted
+                    if sandbox_info and sandbox_info.status != SandboxStatus.DELETING:
                         sandboxes.append(sandbox_info)
 
             # Sort by creation time (newest first)
@@ -257,7 +280,11 @@ class DockerSandboxService(SandboxService):
             if not sandbox_id.startswith(self.container_name_prefix):
                 return None
             container = self.docker_client.containers.get(sandbox_id)
-            return await self._container_to_checked_sandbox_info(container)
+            sandbox_info = await self._container_to_checked_sandbox_info(container)
+            # Don't return sandboxes that are being deleted
+            if sandbox_info and sandbox_info.status == SandboxStatus.DELETING:
+                return None
+            return sandbox_info
         except (NotFound, APIError):
             return None
 
@@ -278,7 +305,16 @@ class DockerSandboxService(SandboxService):
                     container_session_key = env_vars.get(SESSION_API_KEY_VARIABLE)
 
                     if container_session_key == session_api_key:
-                        return await self._container_to_checked_sandbox_info(container)
+                        sandbox_info = await self._container_to_checked_sandbox_info(
+                            container
+                        )
+                        # Don't return sandboxes that are being deleted
+                        if (
+                            sandbox_info
+                            and sandbox_info.status == SandboxStatus.DELETING
+                        ):
+                            return None
+                        return sandbox_info
 
             return None
         except (NotFound, APIError):
@@ -396,10 +432,36 @@ class DockerSandboxService(SandboxService):
             return False
 
     async def delete_sandbox(self, sandbox_id: str) -> bool:
-        """Delete a sandbox."""
+        """Delete a sandbox by marking it as DELETING and performing cleanup in background."""
         try:
             if not sandbox_id.startswith(self.container_name_prefix):
                 return False
+
+            # Check if container exists
+            try:
+                self.docker_client.containers.get(sandbox_id)
+            except (NotFound, APIError):
+                # Container doesn't exist, clean up tracking if any
+                self._unmark_container_deleting(sandbox_id)
+                return False
+
+            # Mark sandbox as DELETING for immediate UI feedback
+            self._mark_container_deleting(sandbox_id)
+
+            # Start background cleanup task
+            asyncio.create_task(self._cleanup_sandbox_background(sandbox_id))
+
+            return True
+        except Exception as e:
+            _logger.error(f'Error marking sandbox {sandbox_id} for deletion: {e}')
+            return False
+
+    async def _cleanup_sandbox_background(self, sandbox_id: str) -> None:
+        """Perform actual Docker cleanup in the background."""
+        try:
+            _logger.info(f'Starting background cleanup for sandbox {sandbox_id}')
+
+            # Get the container
             container = self.docker_client.containers.get(sandbox_id)
 
             # Stop the container if it's running
@@ -418,9 +480,17 @@ class DockerSandboxService(SandboxService):
                 # Volume might not exist or already removed
                 pass
 
-            return True
+            _logger.info(f'Successfully cleaned up sandbox {sandbox_id}')
+
         except (NotFound, APIError):
-            return False
+            _logger.info(f'Sandbox {sandbox_id} was already removed')
+        except Exception as e:
+            _logger.error(
+                f'Error during background cleanup of sandbox {sandbox_id}: {e}'
+            )
+        finally:
+            # Always remove from deleting set when cleanup is complete (or failed)
+            self._unmark_container_deleting(sandbox_id)
 
 
 class DockerSandboxServiceInjector(SandboxServiceInjector):

@@ -15,6 +15,9 @@ FROM base AS backend-builder
 WORKDIR /app
 ENV PYTHONPATH='/app'
 
+# Package manager selection: set USE_UV=1 to use UV instead of Poetry
+ARG USE_UV=0
+
 ENV POETRY_NO_INTERACTION=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=1 \
     POETRY_VIRTUALENVS_CREATE=1 \
@@ -22,11 +25,21 @@ ENV POETRY_NO_INTERACTION=1 \
 
 RUN apt-get update -y \
     && apt-get install -y curl make git build-essential jq gettext \
-    && python3 -m pip install poetry --break-system-packages
+    && python3 -m pip install poetry --break-system-packages \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
 
-COPY pyproject.toml poetry.lock ./
+# Copy both lock files for flexibility
+COPY pyproject.toml poetry.lock uv.lock ./
 RUN touch README.md
-RUN export POETRY_CACHE_DIR && poetry install --no-root && rm -rf $POETRY_CACHE_DIR
+
+# Install dependencies using selected package manager
+RUN if [ "$USE_UV" = "1" ]; then \
+        echo "Installing dependencies with UV..." && \
+        /root/.local/bin/uv sync --no-dev; \
+    else \
+        echo "Installing dependencies with Poetry..." && \
+        export POETRY_CACHE_DIR && poetry install --no-root && rm -rf $POETRY_CACHE_DIR; \
+    fi
 
 FROM base AS openhands-app
 
@@ -76,7 +89,7 @@ COPY --chown=openhands:openhands --chmod=770 --from=backend-builder ${VIRTUAL_EN
 COPY --chown=openhands:openhands --chmod=770 ./skills ./skills
 COPY --chown=openhands:openhands --chmod=770 ./openhands ./openhands
 COPY --chown=openhands:openhands --chmod=777 ./openhands/runtime/plugins ./openhands/runtime/plugins
-COPY --chown=openhands:openhands pyproject.toml poetry.lock README.md MANIFEST.in LICENSE ./
+COPY --chown=openhands:openhands pyproject.toml poetry.lock uv.lock README.md MANIFEST.in LICENSE ./
 
 # This is run as "openhands" user, and will create __pycache__ with openhands:openhands ownership
 RUN python openhands/core/download.py # No-op to download assets

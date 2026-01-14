@@ -69,6 +69,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 RUN curl -fsSL https://install.python-poetry.org | python3.12 - \
     && ln -s ~/.local/bin/poetry /usr/local/bin/poetry
 
+# UV (alternative package manager)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && ln -s ~/.local/bin/uv /usr/local/bin/uv
+
 #
 RUN <<EOF
 #!/bin/bash
@@ -80,9 +84,10 @@ gh --version | head -n 1
 git --version
 #
 python --version
-echo node `node --version`
-echo npm `npm --version`
+echo node \`node --version\`
+echo npm \`npm --version\`
 poetry --version
+uv --version
 netcat -h 2>&1 | head -n 1
 " > /version.sh
 chmod a+x /version.sh

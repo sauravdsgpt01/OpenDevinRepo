@@ -296,7 +296,7 @@ RUN /openhands/micromamba/bin/micromamba create -n openhands -y && \
     /openhands/micromamba/bin/micromamba install -n openhands -c conda-forge poetry python=3.12 -y
 USER root
 
-# Create a clean openhands directory including only the pyproject.toml, poetry.lock and openhands/__init__.py
+# Create a clean openhands directory including only the pyproject.toml, poetry.lock, uv.lock and openhands/__init__.py
 RUN \
     if [ -d /openhands/code ]; then rm -rf /openhands/code; fi && \
     mkdir -p /openhands/code/openhands && \
@@ -307,6 +307,8 @@ RUN \
     git config --global user.email "openhands@all-hands.dev"
 
 COPY --chown=openhands:openhands ./code/pyproject.toml ./code/poetry.lock /openhands/code/
+# Copy uv.lock if it exists (for future UV support)
+COPY --chown=openhands:openhands ./code/uv.lock* /openhands/code/
 
 {{ install_dependencies_user() }}
 {{ install_dependencies_root() }}
@@ -342,6 +344,8 @@ RUN \
 # ================================================================
 RUN if [ -d /openhands/code/openhands ]; then rm -rf /openhands/code/openhands; fi
 COPY --chown=openhands:openhands ./code/pyproject.toml ./code/poetry.lock /openhands/code/
+# Copy uv.lock if it exists (for future UV support)
+COPY --chown=openhands:openhands ./code/uv.lock* /openhands/code/
 RUN if [ -d /openhands/code/skills ]; then rm -rf /openhands/code/skills; fi
 COPY --chown=openhands:openhands ./code/skills /openhands/code/skills
 COPY --chown=openhands:openhands ./code/openhands /openhands/code/openhands

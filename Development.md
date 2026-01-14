@@ -14,7 +14,7 @@ you can clone the OpenHands project directly.
 - [Docker](https://docs.docker.com/engine/install/) (For those on MacOS, make sure to allow the default Docker socket to be used from advanced settings!)
 - [Python](https://www.python.org/downloads/) = 3.12
 - [NodeJS](https://nodejs.org/en/download/package-manager) >= 22.x
-- [Poetry](https://python-poetry.org/docs/#installing-with-the-official-installer) >= 1.8
+- [Poetry](https://python-poetry.org/docs/#installing-with-the-official-installer) >= 1.8 or [UV](https://docs.astral.sh/uv/getting-started/installation/) >= 0.4
 - OS-specific dependencies:
   - Ubuntu: build-essential => `sudo apt-get install build-essential python3.12-dev`
   - WSL: netcat => `sudo apt-get install netcat`
@@ -42,10 +42,12 @@ If you want to develop without system admin/sudo access to upgrade/install `Pyth
 curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
 bash Miniforge3-$(uname)-$(uname -m).sh
 
-# Install Python 3.12, nodejs, and poetry
+# Install Python 3.12, nodejs, and poetry (or uv)
 mamba install python=3.12
 mamba install conda-forge::nodejs
 mamba install conda-forge::poetry
+# Or install UV instead of Poetry:
+# curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 2. Build and Setup The Environment
@@ -148,13 +150,24 @@ To run tests, refer to the following:
 #### Unit tests
 
 ```bash
+# Using Poetry (default)
 poetry run pytest ./tests/unit/test_*.py
+
+# Using UV
+uv run pytest ./tests/unit/test_*.py
 ```
 
 ### 9. Add or update dependency
 
+#### Using Poetry (default)
 1. Add your dependency in `pyproject.toml` or use `poetry add xxx`.
 2. Update the poetry.lock file via `poetry lock --no-update`.
+
+#### Using UV
+1. Add your dependency in `pyproject.toml` or use `uv add xxx`.
+2. Update the uv.lock file via `uv lock`.
+
+**Note:** The project supports both Poetry and UV for dependency management. To use UV instead of Poetry, set `USE_UV=1` when running make commands (e.g., `USE_UV=1 make build`).
 
 ### 10. Use existing Docker image
 

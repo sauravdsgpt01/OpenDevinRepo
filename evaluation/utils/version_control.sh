@@ -1,3 +1,13 @@
+# Package manager runner - uses UV if USE_UV=1, otherwise Poetry
+# This allows gradual migration from Poetry to UV
+get_pkg_run() {
+    if [ "${USE_UV:-0}" = "1" ]; then
+        echo "uv run"
+    else
+        echo "poetry run"
+    fi
+}
+
 checkout_eval_branch() {
     if [ -z "$COMMIT_HASH" ]; then
         echo "Commit hash not specified, use current git commit"
@@ -42,5 +52,6 @@ checkout_original_branch() {
 get_openhands_version() {
     # IMPORTANT: Because Agent's prompt changes fairly often in the rapidly evolving codebase of OpenHands
     # We need to track the version of Agent in the evaluation to make sure results are comparable
-    OPENHANDS_VERSION=v$(poetry run python -c "from openhands import get_version; print(get_version())")
+    PKG_RUN=$(get_pkg_run)
+    OPENHANDS_VERSION=v$($PKG_RUN python -c "from openhands import get_version; print(get_version())")
 }

@@ -3,6 +3,9 @@ set -eo pipefail
 
 source "evaluation/utils/version_control.sh"
 
+# Get package runner (poetry run or uv run based on USE_UV env var)
+PKG_RUN=$(get_pkg_run)
+
 # configure browsing agent
 export USE_NAV="true"
 export USE_CONCISE_ANSWER="true"
@@ -32,7 +35,7 @@ echo "MODEL_CONFIG: $MODEL_CONFIG"
 
 EVAL_NOTE="${OPENHANDS_VERSION}"
 
-COMMAND="poetry run python evaluation/benchmarks/visualwebarena/run_infer.py \
+COMMAND="$PKG_RUN python evaluation/benchmarks/visualwebarena/run_infer.py \
   --agent-cls $AGENT \
   --llm-config $MODEL_CONFIG \
   --max-iterations 15 \

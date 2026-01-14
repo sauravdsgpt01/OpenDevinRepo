@@ -3,6 +3,9 @@ set -eo pipefail
 
 source "evaluation/utils/version_control.sh"
 
+# Get package runner (poetry run or uv run based on USE_UV env var)
+PKG_RUN=$(get_pkg_run)
+
 MODEL_CONFIG=$1
 COMMIT_HASH=$2
 USE_KNOWLEDGE=$3
@@ -32,7 +35,7 @@ echo "AGENT: $AGENT"
 echo "OPENHANDS_VERSION: $OPENHANDS_VERSION"
 echo "MODEL_CONFIG: $MODEL_CONFIG"
 
-COMMAND="poetry run python evaluation/benchmarks/scienceagentbench/run_infer.py \
+COMMAND="$PKG_RUN python evaluation/benchmarks/scienceagentbench/run_infer.py \
   --agent-cls $AGENT \
   --llm-config $MODEL_CONFIG \
   --use-knowledge $USE_KNOWLEDGE \

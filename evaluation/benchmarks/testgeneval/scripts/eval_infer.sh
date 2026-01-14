@@ -1,6 +1,9 @@
 #!/bin/bash
 set -eo pipefail
 
+# Package manager runner - uses UV if USE_UV=1, otherwise Poetry
+PKG_RUN=${PKG_RUN:-poetry run}
+
 INPUT_FILE=$1
 NUM_WORKERS=$2
 DATASET=$3
@@ -29,7 +32,7 @@ fi
 
 echo "... Evaluating on $INPUT_FILE ..."
 
-COMMAND="poetry run python evaluation/benchmarks/testgeneval/eval_infer.py \
+COMMAND="$PKG_RUN python evaluation/benchmarks/testgeneval/eval_infer.py \
   --eval-num-workers $NUM_WORKERS \
   --input-file $INPUT_FILE \
   --dataset $DATASET \
@@ -50,4 +53,4 @@ echo $COMMAND
 eval $COMMAND
 
 # update the output with evaluation results
-# poetry run python evaluation/benchmarks/testgeneval/scripts/eval/update_output_with_eval.py $INPUT_FILE
+# $PKG_RUN python evaluation/benchmarks/testgeneval/scripts/eval/update_output_with_eval.py $INPUT_FILE

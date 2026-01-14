@@ -3,6 +3,9 @@ set -eo pipefail
 
 source "evaluation/utils/version_control.sh"
 
+# Get package runner (poetry run or uv run based on USE_UV env var)
+PKG_RUN=$(get_pkg_run)
+
 MODEL_CONFIG=$1
 
 get_openhands_version
@@ -16,7 +19,7 @@ if [ -n "$EXP_NAME" ]; then
 fi
 
 function run_eval() {
-  COMMAND="poetry run python ./evaluation/benchmarks/lca_ci_build_repair/run_infer.py \
+  COMMAND="$PKG_RUN python ./evaluation/benchmarks/lca_ci_build_repair/run_infer.py \
     --llm-config $MODEL_CONFIG "
 
   # Run the command

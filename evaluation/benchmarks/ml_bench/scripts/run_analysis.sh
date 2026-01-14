@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+
+# Package manager runner - uses UV if USE_UV=1, otherwise Poetry
+PKG_RUN=${PKG_RUN:-poetry run}
 RESULT_FILE=$1
 MODEL_CONFIG=$2
 
@@ -17,7 +20,7 @@ fi
 echo "MODEL_CONFIG: $MODEL_CONFIG"
 echo "RESULT_FILE: $RESULT_FILE"
 
-COMMAND="poetry run python evaluation/benchmarks/ml_bench/run_analysis.py \
+COMMAND="$PKG_RUN python evaluation/benchmarks/ml_bench/run_analysis.py \
   --llm-config $MODEL_CONFIG \
   --json_file_path $RESULT_FILE"
 

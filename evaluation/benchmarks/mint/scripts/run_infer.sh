@@ -3,6 +3,9 @@ set -eo pipefail
 
 source "evaluation/utils/version_control.sh"
 
+# Get package runner (poetry run or uv run based on USE_UV env var)
+PKG_RUN=$(get_pkg_run)
+
 MODEL_CONFIG=$1
 COMMIT_HASH=$2
 SUBSET=$3
@@ -25,7 +28,7 @@ echo "OPENHANDS_VERSION: $OPENHANDS_VERSION"
 
 export PYTHONPATH=$(pwd)
 
-COMMAND="poetry run python ./evaluation/mint/run_infer.py \
+COMMAND="$PKG_RUN python ./evaluation/mint/run_infer.py \
     --llm-config $MODEL_CONFIG \
     --max-iterations 5 \
     --max-propose-solution 2 \

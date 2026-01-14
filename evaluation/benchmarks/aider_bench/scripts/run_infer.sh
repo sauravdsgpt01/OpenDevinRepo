@@ -3,6 +3,9 @@ set -eo pipefail
 
 source "evaluation/utils/version_control.sh"
 
+# Get package runner (poetry run or uv run based on USE_UV env var)
+PKG_RUN=$(get_pkg_run)
+
 MODEL_CONFIG=$1
 COMMIT_HASH=$2
 AGENT=$3
@@ -39,7 +42,7 @@ if [ "$USE_UNIT_TESTS" = true ]; then
   EVAL_NOTE=$EVAL_NOTE-w-test
 fi
 
-COMMAND="export PYTHONPATH=evaluation/benchmarks/aider_bench:\$PYTHONPATH && poetry run python evaluation/benchmarks/aider_bench/run_infer.py \
+COMMAND="export PYTHONPATH=evaluation/benchmarks/aider_bench:\$PYTHONPATH && $PKG_RUN python evaluation/benchmarks/aider_bench/run_infer.py \
   --agent-cls $AGENT \
   --llm-config $MODEL_CONFIG \
   --max-iterations 30 \

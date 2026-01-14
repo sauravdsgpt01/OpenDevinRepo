@@ -3,6 +3,9 @@ set -eo pipefail
 
 source "evaluation/utils/version_control.sh"
 
+# Get package runner (poetry run or uv run based on USE_UV env var)
+PKG_RUN=$(get_pkg_run)
+
 MODEL_CONFIG=$1
 COMMIT_HASH=$2
 AGENT=$3
@@ -107,7 +110,7 @@ export NO_CHANGE_TIMEOUT_SECONDS=900 # 15 minutes
 
 function run_eval() {
   local eval_note="${1}"
-  COMMAND="poetry run python evaluation/benchmarks/swefficiency/run_infer.py \
+  COMMAND="$PKG_RUN python evaluation/benchmarks/swefficiency/run_infer.py \
     --agent-cls $AGENT \
     --llm-config $MODEL_CONFIG \
     --max-iterations $MAX_ITER \

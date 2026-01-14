@@ -29,7 +29,7 @@ DATASET="${EVAL_DATASET%.jsonl}_with_runtime_.jsonl"  # path to converted datase
 
 # Create the converted dataset file
 echo "Creating converted dataset at: $DATASET"
-poetry run python ./evaluation/benchmarks/multi_swe_bench/scripts/data/data_change.py --input "$EVAL_DATASET" --output "$DATASET"
+$PKG_RUN python ./evaluation/benchmarks/multi_swe_bench/scripts/data/data_change.py --input "$EVAL_DATASET" --output "$DATASET"
 
 SPLIT="train"
 export LANGUAGE=java
@@ -45,6 +45,9 @@ fi
 
 # ===== Run inference =====
 source "evaluation/utils/version_control.sh"
+
+# Get package runner (poetry run or uv run based on USE_UV env var)
+PKG_RUN=$(get_pkg_run)
 get_openhands_version
 
 echo "OPENHANDS_VERSION: $OPENHANDS_VERSION"
@@ -64,7 +67,7 @@ function run_eval() {
   export LANGUAGE=java
   echo "About to run command"
   COMMAND="EVAL_DOCKER_IMAGE_PREFIX=$EVAL_DOCKER_IMAGE_PREFIX; LANGUAGE=java;
-    poetry run python evaluation/benchmarks/multi_swe_bench/run_infer.py \
+    $PKG_RUN python evaluation/benchmarks/multi_swe_bench/run_infer.py \
     --agent-cls CodeActAgent \
     --llm-config $MODEL \
     --max-iterations $MAX_ITER \
@@ -90,7 +93,7 @@ function run_eval() {
 for run_idx in $(seq 1 $N_RUNS); do
     if [ -n "$SKIP_IDS_THRESHOLD" ]; then
         echo "Computing SKIP_IDS for run $run_idx..."
-        SKIP_CMD="poetry run python evaluation/benchmarks/multi_swe_bench/compute_skip_ids.py $SKIP_IDS_THRESHOLD"
+        SKIP_CMD="$PKG_RUN python evaluation/benchmarks/multi_swe_bench/compute_skip_ids.py $SKIP_IDS_THRESHOLD"
         if [ -n "$SKIP_IDS_PATTERN" ]; then
             SKIP_CMD="$SKIP_CMD --pattern \"$SKIP_IDS_PATTERN\""
         fi
@@ -150,8 +153,8 @@ for run_idx in $(seq 1 $N_RUNS); do
         echo "### Evaluating on $OUTPUT_FILE ... ###"
         OUTPUT_CONFIG_FILE="${OUTPUT_FILE%.jsonl}_config.json"
         export EVAL_SKIP_BUILD_ERRORS=true
-        COMMAND="poetry run python ./evaluation/benchmarks/multi_swe_bench/scripts/eval/update_multi_swe_bench_config.py --input $OUTPUT_FILE --output $OUTPUT_CONFIG_FILE --dataset $EVAL_DATASET;
-        poetry run python -m multi_swe_bench.harness.run_evaluation --config $OUTPUT_CONFIG_FILE
+        COMMAND="$PKG_RUN python ./evaluation/benchmarks/multi_swe_bench/scripts/eval/update_multi_swe_bench_config.py --input $OUTPUT_FILE --output $OUTPUT_CONFIG_FILE --dataset $EVAL_DATASET;
+        $PKG_RUN python -m multi_swe_bench.harness.run_evaluation --config $OUTPUT_CONFIG_FILE
         "
 
         echo "Running command: $COMMAND"
@@ -170,10 +173,10 @@ for run_idx in $(seq 1 $N_RUNS); do
 
     # update the output with evaluation results
     echo "### Updating the output with evaluation results... ###"
-    poetry run python evaluation/benchmarks/multi_swe_bench/scripts/eval/update_output_with_eval.py $OUTPUT_FILE
+    $PKG_RUN python evaluation/benchmarks/multi_swe_bench/scripts/eval/update_output_with_eval.py $OUTPUT_FILE
 
     echo "### Combining the final completions... ###"
-    poetry run python evaluation/benchmarks/multi_swe_bench/scripts/eval/combine_final_completions.py $OUTPUT_FILE
+    $PKG_RUN python evaluation/benchmarks/multi_swe_bench/scripts/eval/combine_final_completions.py $OUTPUT_FILE
 
     echo "### DONE for run $run_idx! ###"
     echo "You can find the final output at $(dirname $OUTPUT_FILE)/$FINAL_OUTPUT_FILE"

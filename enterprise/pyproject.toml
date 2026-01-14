@@ -4,6 +4,68 @@ requires = [
   "poetry-core",
 ]
 
+[project]
+name = "enterprise-server"
+version = "0.0.1"
+description = "Deploy OpenHands"
+readme = "README.md"
+license = { text = "POLYFORM" }
+authors = [ { name = "OpenHands" } ]
+requires-python = ">=3.12,<3.14"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "alembic>=1.14.1",
+  "asyncpg>=0.30",
+  "cloud-sql-python-connector>=1.16",
+  "coredis>=4.22",
+  "ddtrace==3.13",
+  "google-cloud-recaptcha-enterprise>=1.24",
+  "gspread>=6.1.4",
+  "httpx",
+  "limits>=5.2",
+  "openhands-ai",
+  "pg8000>=1.31.2",
+  "posthog>=6",
+  "psycopg2-binary>=2.9.10",
+  "python-json-logger>=3.2.1",
+  "python-keycloak>=5.3.1",
+  "resend>=2.7",
+  "scikit-learn>=1.7",
+  "shap>=0.48",
+  "slack-sdk>=3.35",
+  "sqlalchemy[asyncio]>=2.0.40",
+  "stripe>=11.5",
+  "tenacity>=9.1.2",
+]
+
+urls.Repository = "https://github.com/OpenHands/OpenHands"
+
+[dependency-groups]
+dev = [
+  "build",
+  "mypy==1.13",
+  "pre-commit==4.1",
+  "ruff==0.8.3",
+  "types-requests>=2.32.4.20250611",
+]
+test = [
+  "flake8",
+  "gevent>=24.2.1,<26",
+  "openai",
+  "opencv-python",
+  "pandas",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-forked",
+  "pytest-xdist",
+  "reportlab",
+]
+
 [tool.poetry]
 name = "enterprise_server"
 version = "0.0.1"
@@ -90,3 +152,6 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.coverage.run]
 relative_files = true
 omit = [ "tests/*" ]
+
+[tool.uv.sources]
+openhands-ai = { path = "../", editable = true }

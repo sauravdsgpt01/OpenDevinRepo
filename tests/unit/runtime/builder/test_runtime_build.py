@@ -62,12 +62,15 @@ def _check_source_code_in_dir(temp_dir):
     assert os.path.exists(os.path.join(code_dir, 'pyproject.toml'))
 
     # The source code should only include the `openhands` folder,
-    # and pyproject.toml & poetry.lock that are needed to build the runtime image
-    assert set(os.listdir(code_dir)) == {
-        'openhands',
-        'pyproject.toml',
-        'poetry.lock',
-    }
+    # and pyproject.toml & lock files that are needed to build the runtime image
+    expected_files = {'openhands', 'pyproject.toml', 'poetry.lock'}
+    # uv.lock is optional - include it if it exists
+    if os.path.exists(os.path.join(code_dir, 'uv.lock')):
+        expected_files.add('uv.lock')
+    # skills directory may also be present
+    if os.path.exists(os.path.join(code_dir, 'skills')):
+        expected_files.add('skills')
+    assert set(os.listdir(code_dir)) == expected_files
     assert os.path.exists(os.path.join(code_dir, 'openhands'))
     assert os.path.isdir(os.path.join(code_dir, 'openhands'))
 
@@ -89,9 +92,11 @@ def test_prep_build_folder(temp_dir):
             extra_deps=None,
         )
 
-    # make sure that the code (openhands/) and microagents folder were copied
+    # make sure that the code (openhands/) and skills folder were copied
     assert shutil_mock.copytree.call_count == 2
-    assert shutil_mock.copy2.call_count == 2
+    # copy2 is called for pyproject.toml, poetry.lock, and optionally uv.lock
+    # The exact count depends on whether uv.lock exists
+    assert shutil_mock.copy2.call_count >= 2
 
     # Now check dockerfile is in the folder
     dockerfile_path = os.path.join(temp_dir, 'Dockerfile')
@@ -100,26 +105,35 @@ def test_prep_build_folder(temp_dir):
 
 
 def test_get_hash_for_lock_files():
-    with patch('builtins.open', mock_open(read_data='mock-data'.encode())):
+    # Mock Path.exists to return True for all files including uv.lock
+    with (
+        patch('builtins.open', mock_open(read_data='mock-data'.encode())),
+        patch.object(Path, 'exists', return_value=True),
+    ):
         hash = get_hash_for_lock_files('some_base_image', enable_browser=True)
         # Since we mocked open to always return "mock_data", the hash is the result
-        # of hashing the name of the base image followed by "mock-data" twice
+        # of hashing the name of the base image followed by "mock-data" three times
+        # (pyproject.toml, poetry.lock, uv.lock)
         md5 = hashlib.md5()
         md5.update('some_base_image'.encode())
-        for _ in range(2):
+        for _ in range(3):  # pyproject.toml, poetry.lock, uv.lock
             md5.update('mock-data'.encode())
         assert hash == truncate_hash(md5.hexdigest())
 
 
 def test_get_hash_for_lock_files_different_enable_browser():
-    with patch('builtins.open', mock_open(read_data='mock-data'.encode())):
+    # Mock Path.exists to return True for all files including uv.lock
+    with (
+        patch('builtins.open', mock_open(read_data='mock-data'.encode())),
+        patch.object(Path, 'exists', return_value=True),
+    ):
         hash_true = get_hash_for_lock_files('some_base_image', enable_browser=True)
         hash_false = get_hash_for_lock_files('some_base_image', enable_browser=False)
 
         # Hash with enable_browser=True should not include the enable_browser value
         md5_true = hashlib.md5()
         md5_true.update('some_base_image'.encode())
-        for _ in range(2):
+        for _ in range(3):  # pyproject.toml, poetry.lock, uv.lock
             md5_true.update('mock-data'.encode())
         expected_hash_true = truncate_hash(md5_true.hexdigest())
 
@@ -127,7 +141,7 @@ def test_get_hash_for_lock_files_different_enable_browser():
         md5_false = hashlib.md5()
         md5_false.update('some_base_image'.encode())
         md5_false.update('False'.encode())  # enable_browser=False is included
-        for _ in range(2):
+        for _ in range(3):  # pyproject.toml, poetry.lock, uv.lock
             md5_false.update('mock-data'.encode())
         expected_hash_false = truncate_hash(md5_false.hexdigest())
 

@@ -116,6 +116,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Install poetry via pipx
         run: pipx install poetry
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh && echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Set up Python
         uses: useblacksmith/setup-python@v6
         with:

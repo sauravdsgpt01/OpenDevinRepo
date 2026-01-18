@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from jinja2 import Environment
 from pydantic import BaseModel
@@ -20,6 +21,12 @@ class UserData(BaseModel):
     user_id: int
     username: str
     keycloak_user_id: str
+
+
+class WidgetResponse(BaseModel):
+    ongoing_incidents: list[dict[str, Any]]
+    in_progress_maintenances: list[dict[str, Any]]
+    scheduled_maintenances: list[dict[str, Any]]
 
 
 @dataclass

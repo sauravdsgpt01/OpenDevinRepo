@@ -26,15 +26,14 @@ import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
 import { LOCAL_STORAGE_KEYS } from "#/utils/local-storage";
 import { EmailVerificationGuard } from "#/components/features/guards/email-verification-guard";
 import { MaintenanceBanner } from "#/components/features/maintenance/maintenance-banner";
-import { useIncidentStatus } from "#/hooks/query/use-incident-status";
-import type {
-  Incident,
-  Maintenance,
-} from "#/api/option-service/incident.types";
-import { IncidentBanner } from "#/components/features/incident/incident-banner";
 import { cn, isMobileDevice } from "#/utils/utils";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
+import {
+  InProgressMaintenanceBanners,
+  OngoingIncidentBanners,
+  ScheduledMaintenanceBanners,
+} from "#/components/features/incident/banners";
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -79,9 +78,6 @@ export default function MainApp() {
   const { t } = useTranslation();
 
   const config = useConfig();
-  const incidentStatus = useIncidentStatus({
-    enabled: config?.data?.APP_MODE === "saas",
-  });
   const {
     data: isAuthed,
     isFetching: isFetchingAuth,
@@ -233,21 +229,9 @@ export default function MainApp() {
         )}
         {config.data?.APP_MODE === "saas" && (
           <>
-            {incidentStatus.data?.ongoing_incidents?.map(
-              (incident: Incident) => (
-                <IncidentBanner key={incident.id} incident={incident} />
-              ),
-            )}
-            {incidentStatus.data?.in_progress_maintenances?.map(
-              (maintenance: Maintenance) => (
-                <IncidentBanner key={maintenance.id} incident={maintenance} />
-              ),
-            )}
-            {incidentStatus.data?.scheduled_maintenances?.map(
-              (maintenance: Maintenance) => (
-                <IncidentBanner key={maintenance.id} incident={maintenance} />
-              ),
-            )}
+            <OngoingIncidentBanners />
+            <InProgressMaintenanceBanners />
+            <ScheduledMaintenanceBanners />
           </>
         )}
         <div

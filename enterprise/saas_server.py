@@ -25,7 +25,6 @@ from server.logger import logger  # noqa: E402
 from server.middleware import SetAuthCookieMiddleware  # noqa: E402
 from server.rate_limit import setup_rate_limit_handler  # noqa: E402
 from server.routes.api_keys import api_router as api_keys_router  # noqa: E402
-from server.routes.status import router as status_router  # noqa: E402
 from server.routes.auth import api_router, oauth_router  # noqa: E402
 from server.routes.billing import billing_router  # noqa: E402
 from server.routes.debugging import add_debugging_routes  # noqa: E402
@@ -40,6 +39,7 @@ from server.routes.integration.slack import slack_router  # noqa: E402
 from server.routes.mcp_patch import patch_mcp_server  # noqa: E402
 from server.routes.oauth_device import oauth_device_router  # noqa: E402
 from server.routes.readiness import readiness_router  # noqa: E402
+from server.routes.status import router as status_router  # noqa: E402
 from server.routes.user import saas_user_router  # noqa: E402
 from server.sharing.shared_conversation_router import (  # noqa: E402
     router as shared_conversation_router,

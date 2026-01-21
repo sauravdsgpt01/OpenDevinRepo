@@ -1,0 +1,110 @@
+# Workflow to build the static runtime-base image
+# This image contains all heavy dependencies (system packages, Docker, Node.js, micromamba, Playwright, VS Code Server)
+# and is meant to be built infrequently (weekly or on-demand)
+#
+# The runtime image builds will use this as a base, significantly reducing build times from ~15 min to ~2-4 min
+name: Build Runtime Base Image
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual trigger"
+        required: false
+        default: "Manual build"
+  # Weekly schedule (Sunday at 2am UTC)
+  schedule:
+    - cron: "0 2 * * 0"
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build-runtime-base:
+    name: Build Runtime Base Image
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner_arch: amd64
+          - platform: linux/arm64
+            runner_arch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3.7.0
+        with:
+          image: tonistiigi/binfmt:latest
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Lowercase Repository Owner
+        run: |
+          echo REPO_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') >> $GITHUB_ENV
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Build and push runtime-base image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./containers/runtime-base
+          file: ./containers/runtime-base/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.REPO_OWNER }}/runtime-base:latest
+            ghcr.io/${{ env.REPO_OWNER }}/runtime-base:${{ steps.date.outputs.date }}
+          platforms: ${{ matrix.platform }}
+          cache-from: type=registry,ref=ghcr.io/${{ env.REPO_OWNER }}/runtime-base:buildcache-${{ matrix.runner_arch }}
+          cache-to: type=registry,ref=ghcr.io/${{ env.REPO_OWNER }}/runtime-base:buildcache-${{ matrix.runner_arch }},mode=max
+          provenance: false
+
+  # Create multi-arch manifest
+  create-manifest:
+    name: Create Multi-Arch Manifest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    needs: build-runtime-base
+    permissions:
+      packages: write
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase Repository Owner
+        run: |
+          echo REPO_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') >> $GITHUB_ENV
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Create and push manifest
+        run: |
+          docker manifest create ghcr.io/${{ env.REPO_OWNER }}/runtime-base:latest \
+            --amend ghcr.io/${{ env.REPO_OWNER }}/runtime-base:latest
+          docker manifest push ghcr.io/${{ env.REPO_OWNER }}/runtime-base:latest
+
+          docker manifest create ghcr.io/${{ env.REPO_OWNER }}/runtime-base:${{ steps.date.outputs.date }} \
+            --amend ghcr.io/${{ env.REPO_OWNER }}/runtime-base:${{ steps.date.outputs.date }}
+          docker manifest push ghcr.io/${{ env.REPO_OWNER }}/runtime-base:${{ steps.date.outputs.date }}

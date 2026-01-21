@@ -196,8 +196,9 @@ RUN rm -rf ${OPENVSCODE_SERVER_ROOT}/extensions/{handlebars,pug,json,diff,grunt,
 # Install system-level dependencies that require root
 USER root
 RUN \
-    {% if enable_browser %}
+    {% if enable_browser and not build_from_runtime_base %}
     # Install system dependencies for Playwright (requires root)
+    # Skip if building from runtime-base (Playwright already installed)
     apt-get update && \
     apt-get install -y --no-install-recommends \
         libnss3 libnspr4 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libxcomposite1 \
@@ -335,7 +336,9 @@ RUN \
     chown -R openhands:openhands /home/openhands || true && \
     chown -R openhands:openhands /openhands || true
 
+{% if not build_from_runtime_base %}
 {{ setup_vscode_server() }}
+{% endif %}
 
 # ================================================================
 # Copy Project source files

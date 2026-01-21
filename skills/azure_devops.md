@@ -14,6 +14,8 @@ the Azure DevOps API.
 <IMPORTANT>
 You can use `curl` with the `AZURE_DEVOPS_TOKEN` to interact with Azure DevOps's API.
 ALWAYS use the Azure DevOps API for operations instead of a web browser.
+Do NOT post comments, updates, or status messages directly to Azure DevOps work items or pull requests.
+The system will automatically post a summary of your work when you are done.
 </IMPORTANT>
 
 If you encounter authentication issues when pushing to Azure DevOps (such as password prompts or permission errors), the old token may have expired. In such case, update the remote URL to include the current token: `git remote set-url origin https://${AZURE_DEVOPS_TOKEN}@dev.azure.com/organization/project/_git/repository`

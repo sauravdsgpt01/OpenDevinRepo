@@ -33,7 +33,7 @@ class AzureDevOpsPRsMixin(AzureDevOpsMixinBase):
         Args:
             repository: Repository name in format "organization/project/repo"
             pr_number: The pull request number
-            comment_text: The comment text to post
+            comment_text: The comment text to post (supports Markdown)
             status: Thread status ('active', 'fixed', 'wontFix', 'closed', 'byDesign', 'pending')
 
         Returns:
@@ -51,6 +51,7 @@ class AzureDevOpsPRsMixin(AzureDevOpsMixinBase):
 
         url = f'{self.base_url}/{org_enc}/{project_enc}/_apis/git/repositories/{repo_enc}/pullrequests/{pr_number}/threads?api-version=7.1'
 
+        # PR comments support Markdown natively - no HTML conversion needed
         # Create thread payload with a comment
         # Reference: https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-request-threads/create
         payload = {

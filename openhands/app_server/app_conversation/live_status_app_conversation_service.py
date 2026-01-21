@@ -32,6 +32,7 @@ from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationStartTask,
     AppConversationStartTaskStatus,
     AppConversationUpdateRequest,
+    SandboxGroupingStrategy,
 )
 from openhands.app_server.app_conversation.app_conversation_service import (
     AppConversationService,
@@ -116,6 +117,9 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
     app_mode: str | None = None
     keycloak_auth_cookie: str | None = None
     tavily_api_key: str | None = None
+    sandbox_grouping_strategy: SandboxGroupingStrategy = (
+        SandboxGroupingStrategy.NO_GROUPING
+    )
 
     async def search_app_conversations(
         self,
@@ -231,11 +235,19 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             )
             assert sandbox_spec is not None
 
+            # Set up conversation id
+            conversation_id = request.conversation_id or uuid4()
+
+            # Setup working dir based on grouping
+            working_dir = sandbox_spec.working_dir
+            if self.sandbox_grouping_strategy != SandboxGroupingStrategy.NO_GROUPING:
+                working_dir = f'{working_dir}/{conversation_id.hex}'
+
             # Run setup scripts
             remote_workspace = AsyncRemoteWorkspace(
                 host=agent_server_url,
                 api_key=sandbox.session_api_key,
-                working_dir=sandbox_spec.working_dir,
+                working_dir=working_dir,
             )
             async for updated_task in self.run_setup_scripts(
                 task, sandbox, remote_workspace
@@ -246,13 +258,13 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             start_conversation_request = (
                 await self._build_start_conversation_request_for_user(
                     sandbox,
+                    conversation_id,
                     request.initial_message,
                     request.system_message_suffix,
                     request.git_provider,
-                    sandbox_spec.working_dir,
+                    working_dir,
                     request.agent_type,
                     request.llm_model,
-                    request.conversation_id,
                     remote_workspace=remote_workspace,
                     selected_repository=request.selected_repository,
                 )
@@ -472,21 +484,148 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 result[stored_conversation.sandbox_id].append(stored_conversation.id)
         return result
 
+    async def _find_running_sandbox_for_user(self) -> SandboxInfo | None:
+        """Find a running sandbox for the current user based on the grouping strategy.
+
+        Returns:
+            SandboxInfo if a running sandbox is found, None otherwise.
+        """
+        try:
+            user_id = await self.user_context.get_user_id()
+
+            # If no grouping, return None to force creation of a new sandbox
+            if self.sandbox_grouping_strategy == SandboxGroupingStrategy.NO_GROUPING:
+                return None
+
+            # Collect all running sandboxes for this user
+            running_sandboxes = []
+            page_id = None
+            while True:
+                page = await self.sandbox_service.search_sandboxes(
+                    page_id=page_id, limit=100
+                )
+
+                for sandbox in page.items:
+                    if (
+                        sandbox.status == SandboxStatus.RUNNING
+                        and sandbox.created_by_user_id == user_id
+                    ):
+                        running_sandboxes.append(sandbox)
+
+                if page.next_page_id is None:
+                    break
+                page_id = page.next_page_id
+
+            if not running_sandboxes:
+                return None
+
+            # Apply the grouping strategy
+            return await self._select_sandbox_by_strategy(running_sandboxes)
+
+        except Exception as e:
+            _logger.warning(
+                f'Error finding running sandbox for user: {e}', exc_info=True
+            )
+            return None
+
+    async def _select_sandbox_by_strategy(
+        self, running_sandboxes: list[SandboxInfo]
+    ) -> SandboxInfo:
+        """Select a sandbox from the list based on the configured grouping strategy.
+
+        Args:
+            running_sandboxes: List of running sandboxes for the user
+
+        Returns:
+            Selected sandbox based on the strategy
+        """
+        if self.sandbox_grouping_strategy == SandboxGroupingStrategy.ADD_TO_ANY:
+            # Return the first available sandbox
+            return running_sandboxes[0]
+
+        elif self.sandbox_grouping_strategy == SandboxGroupingStrategy.GROUP_BY_NEWEST:
+            # Return the most recently created sandbox
+            return max(running_sandboxes, key=lambda s: s.created_at)
+
+        elif (
+            self.sandbox_grouping_strategy
+            == SandboxGroupingStrategy.LEAST_RECENTLY_USED
+        ):
+            # Return the least recently created sandbox (oldest)
+            return min(running_sandboxes, key=lambda s: s.created_at)
+
+        elif (
+            self.sandbox_grouping_strategy
+            == SandboxGroupingStrategy.FEWEST_CONVERSATIONS
+        ):
+            # Count conversations per sandbox and return the one with fewest
+            sandbox_conversation_counts = (
+                await self._get_conversation_counts_by_sandbox(
+                    [s.id for s in running_sandboxes]
+                )
+            )
+            return min(
+                running_sandboxes,
+                key=lambda s: sandbox_conversation_counts.get(s.id, 0),
+            )
+
+        else:
+            # Default fallback - return first sandbox
+            return running_sandboxes[0]
+
+    async def _get_conversation_counts_by_sandbox(
+        self, sandbox_ids: list[str]
+    ) -> dict[str, int]:
+        """Get the count of conversations for each sandbox.
+
+        Args:
+            sandbox_ids: List of sandbox IDs to count conversations for
+
+        Returns:
+            Dictionary mapping sandbox_id to conversation count
+        """
+        try:
+            # Get all conversations for the current user
+            page = (
+                await self.app_conversation_info_service.search_app_conversation_info(
+                    limit=10000  # Large limit to get all conversations
+                )
+            )
+
+            # Count conversations per sandbox
+            counts: dict[str, int] = defaultdict(int)
+            for conversation in page.items:
+                if conversation and conversation.sandbox_id in sandbox_ids:
+                    counts[conversation.sandbox_id] += 1
+
+            return dict(counts)
+        except Exception as e:
+            _logger.warning(
+                f'Error counting conversations by sandbox: {e}', exc_info=True
+            )
+            # Return empty counts on error - will default to first sandbox
+            return {}
+
     async def _wait_for_sandbox_start(
         self, task: AppConversationStartTask
     ) -> AsyncGenerator[AppConversationStartTask, None]:
         """Wait for sandbox to start and return info."""
         # Get or create the sandbox
         if not task.request.sandbox_id:
-            # Convert conversation_id to hex string if present
-            sandbox_id_str = (
-                task.request.conversation_id.hex
-                if task.request.conversation_id is not None
-                else None
-            )
-            sandbox = await self.sandbox_service.start_sandbox(
-                sandbox_id=sandbox_id_str
-            )
+            # First try to find a running sandbox for the current user
+            sandbox = await self._find_running_sandbox_for_user()
+            if sandbox is None:
+                sandbox = await self.sandbox_service.start_sandbox()
+                # Convert conversation_id to hex string if present
+                sandbox_id_str = (
+                    task.request.conversation_id.hex
+                    if task.request.conversation_id is not None
+                    else None
+                )
+                # No running sandbox found, start a new one
+                sandbox = await self.sandbox_service.start_sandbox(
+                    sandbox_id=sandbox_id_str
+                )
             task.sandbox_id = sandbox.id
         else:
             sandbox_info = await self.sandbox_service.get_sandbox(
@@ -962,7 +1101,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
     async def _finalize_conversation_request(
         self,
         agent: Agent,
-        conversation_id: UUID | None,
+        conversation_id: UUID,
         user: UserInfo,
         workspace: LocalWorkspace,
         initial_message: SendMessageRequest | None,
@@ -989,9 +1128,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         Returns:
             Complete StartConversationRequest ready for use
         """
-        # Generate conversation ID if not provided
-        conversation_id = conversation_id or uuid4()
-
         # Apply experiment variants
         agent = ExperimentManagerImpl.run_agent_variant_tests__v1(
             user.id, conversation_id, agent
@@ -1026,13 +1162,13 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
     async def _build_start_conversation_request_for_user(
         self,
         sandbox: SandboxInfo,
+        conversation_id: UUID,
         initial_message: SendMessageRequest | None,
         system_message_suffix: str | None,
         git_provider: ProviderType | None,
         working_dir: str,
         agent_type: AgentType = AgentType.DEFAULT,
         llm_model: str | None = None,
-        conversation_id: UUID | None = None,
         remote_workspace: AsyncRemoteWorkspace | None = None,
         selected_repository: str | None = None,
     ) -> StartConversationRequest:
@@ -1356,6 +1492,10 @@ class LiveStatusAppConversationServiceInjector(AppConversationServiceInjector):
         default=None,
         description='The Tavily Search API key to add to MCP integration',
     )
+    sandbox_grouping_strategy: SandboxGroupingStrategy = Field(
+        default=SandboxGroupingStrategy.ADD_TO_ANY,
+        description='Strategy for grouping conversations within sandboxes',
+    )
 
     async def inject(
         self, state: InjectorState, request: Request | None = None
@@ -1442,4 +1582,5 @@ class LiveStatusAppConversationServiceInjector(AppConversationServiceInjector):
                 app_mode=app_mode,
                 keycloak_auth_cookie=keycloak_auth_cookie,
                 tavily_api_key=tavily_api_key,
+                sandbox_grouping_strategy=self.sandbox_grouping_strategy,
             )

@@ -103,6 +103,9 @@ async def on_conversation_update(
     app_conversation_info_service: AppConversationInfoService = app_conversation_info_service_dependency,
 ) -> Success:
     """Webhook callback for when a conversation starts, pauses, resumes, or deletes."""
+    if conversation_info.execution_status == ConversationExecutionStatus.DELETING:
+        return Success()
+
     existing = await valid_conversation(
         conversation_info.id, sandbox_info, app_conversation_info_service
     )

@@ -243,6 +243,7 @@ class TestExperimentManagerIntegration:
             # --- Act: build the start request
             start_req = await service._build_start_conversation_request_for_user(
                 sandbox=sandbox,
+                conversation_id=uuid4(),
                 initial_message=None,
                 system_message_suffix=None,  # No additional system message suffix
                 git_provider=None,  # Keep secrets path simple

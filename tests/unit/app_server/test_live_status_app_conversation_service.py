@@ -5,7 +5,7 @@ import json
 import zipfile
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from pydantic import SecretStr
@@ -18,6 +18,7 @@ from openhands.app_server.app_conversation.app_conversation_models import (
     AgentType,
     AppConversationInfo,
     AppConversationStartRequest,
+    SandboxGroupingStrategy,
 )
 from openhands.app_server.app_conversation.live_status_app_conversation_service import (
     LiveStatusAppConversationService,
@@ -26,6 +27,7 @@ from openhands.app_server.sandbox.sandbox_models import (
     AGENT_SERVER,
     ExposedUrl,
     SandboxInfo,
+    SandboxPage,
     SandboxStatus,
 )
 from openhands.app_server.sandbox.sandbox_spec_models import SandboxSpecInfo
@@ -76,6 +78,8 @@ class TestLiveStatusAppConversationService:
             access_token_hard_timeout=None,
             app_mode='test',
             keycloak_auth_cookie=None,
+            tavily_api_key=None,
+            sandbox_grouping_strategy=SandboxGroupingStrategy.ADD_TO_ANY,  # Use ADD_TO_ANY for tests to maintain old behavior
         )
 
         # Mock user info
@@ -892,7 +896,7 @@ class TestLiveStatusAppConversationService:
 
         # Assert
         assert isinstance(result, StartConversationRequest)
-        assert isinstance(result.conversation_id, UUID)
+        assert result.conversation_id is None
         assert result.agent == mock_updated_agent
         mock_experiment_manager.run_agent_variant_tests__v1.assert_called_once()
 
@@ -979,13 +983,13 @@ class TestLiveStatusAppConversationService:
         # Act
         result = await self.service._build_start_conversation_request_for_user(
             sandbox=self.mock_sandbox,
+            conversation_id=uuid4(),
             initial_message=None,
             system_message_suffix='Test suffix',
             git_provider=ProviderType.GITHUB,
             working_dir='/test/dir',
             agent_type=AgentType.DEFAULT,
             llm_model='gpt-4',
-            conversation_id=None,
             remote_workspace=None,
             selected_repository='test/repo',
         )
@@ -1010,6 +1014,98 @@ class TestLiveStatusAppConversationService:
         self.service._finalize_conversation_request.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_find_running_sandbox_for_user_found(self):
+        """Test _find_running_sandbox_for_user when a running sandbox is found."""
+        # Arrange
+        user_id = 'test_user_123'
+        self.mock_user_context.get_user_id.return_value = user_id
+
+        # Create mock sandboxes
+        running_sandbox = Mock(spec=SandboxInfo)
+        running_sandbox.id = 'sandbox_1'
+        running_sandbox.status = SandboxStatus.RUNNING
+        running_sandbox.created_by_user_id = user_id
+
+        other_user_sandbox = Mock(spec=SandboxInfo)
+        other_user_sandbox.id = 'sandbox_2'
+        other_user_sandbox.status = SandboxStatus.RUNNING
+        other_user_sandbox.created_by_user_id = 'other_user'
+
+        paused_sandbox = Mock(spec=SandboxInfo)
+        paused_sandbox.id = 'sandbox_3'
+        paused_sandbox.status = SandboxStatus.PAUSED
+        paused_sandbox.created_by_user_id = user_id
+
+        # Mock sandbox service search
+        mock_page = Mock(spec=SandboxPage)
+        mock_page.items = [other_user_sandbox, running_sandbox, paused_sandbox]
+        mock_page.next_page_id = None
+        self.mock_sandbox_service.search_sandboxes = AsyncMock(return_value=mock_page)
+
+        # Act
+        result = await self.service._find_running_sandbox_for_user()
+
+        # Assert
+        assert result == running_sandbox
+        self.mock_user_context.get_user_id.assert_called_once()
+        self.mock_sandbox_service.search_sandboxes.assert_called_once_with(
+            page_id=None, limit=100
+        )
+
+    @pytest.mark.asyncio
+    async def test_find_running_sandbox_for_user_not_found(self):
+        """Test _find_running_sandbox_for_user when no running sandbox is found."""
+        # Arrange
+        user_id = 'test_user_123'
+        self.mock_user_context.get_user_id.return_value = user_id
+
+        # Create mock sandboxes (none running for this user)
+        other_user_sandbox = Mock(spec=SandboxInfo)
+        other_user_sandbox.id = 'sandbox_1'
+        other_user_sandbox.status = SandboxStatus.RUNNING
+        other_user_sandbox.created_by_user_id = 'other_user'
+
+        paused_sandbox = Mock(spec=SandboxInfo)
+        paused_sandbox.id = 'sandbox_2'
+        paused_sandbox.status = SandboxStatus.PAUSED
+        paused_sandbox.created_by_user_id = user_id
+
+        # Mock sandbox service search
+        mock_page = Mock(spec=SandboxPage)
+        mock_page.items = [other_user_sandbox, paused_sandbox]
+        mock_page.next_page_id = None
+        self.mock_sandbox_service.search_sandboxes = AsyncMock(return_value=mock_page)
+
+        # Act
+        result = await self.service._find_running_sandbox_for_user()
+
+        # Assert
+        assert result is None
+        self.mock_user_context.get_user_id.assert_called_once()
+        self.mock_sandbox_service.search_sandboxes.assert_called_once_with(
+            page_id=None, limit=100
+        )
+
+    @pytest.mark.asyncio
+    async def test_find_running_sandbox_for_user_exception_handling(self):
+        """Test _find_running_sandbox_for_user handles exceptions gracefully."""
+        # Arrange
+        self.mock_user_context.get_user_id.side_effect = Exception('User context error')
+
+        # Act
+        with patch(
+            'openhands.app_server.app_conversation.live_status_app_conversation_service._logger'
+        ) as mock_logger:
+            result = await self.service._find_running_sandbox_for_user()
+
+        # Assert
+        assert result is None
+        mock_logger.warning.assert_called_once()
+        assert (
+            'Error finding running sandbox for user'
+            in mock_logger.warning.call_args[0][0]
+        )
+
     async def test_export_conversation_success(self):
         """Test successful download of conversation trajectory."""
         # Arrange

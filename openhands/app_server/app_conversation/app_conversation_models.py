@@ -60,6 +60,20 @@ class AppConversationSortOrder(Enum):
     TITLE_DESC = 'TITLE_DESC'
 
 
+class SandboxGroupingStrategy(Enum):
+    """Strategy for grouping conversations within sandboxes."""
+
+    NO_GROUPING = 'NO_GROUPING'  # Default - each conversation gets its own sandbox
+    GROUP_BY_NEWEST = 'GROUP_BY_NEWEST'  # Add to the most recently created sandbox
+    LEAST_RECENTLY_USED = (
+        'LEAST_RECENTLY_USED'  # Add to the least recently used sandbox
+    )
+    FEWEST_CONVERSATIONS = (
+        'FEWEST_CONVERSATIONS'  # Add to sandbox with fewest conversations
+    )
+    ADD_TO_ANY = 'ADD_TO_ANY'  # Add to any available sandbox (first found)
+
+
 class AppConversationInfoPage(BaseModel):
     items: list[AppConversationInfo]
     next_page_id: str | None = None

@@ -38,7 +38,7 @@ export function LoginContent({
 
   // reCAPTCHA - only need token generation, verification happens at backend callback
   const { isReady: recaptchaReady, executeRecaptcha } = useRecaptcha({
-    siteKey: config?.RECAPTCHA_SITE_KEY,
+    siteKey: undefined,
   });
 
   const gitlabAuthUrl = useAuthUrl({

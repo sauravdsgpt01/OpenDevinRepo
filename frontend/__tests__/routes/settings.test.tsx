@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import SettingsScreen, { clientLoader } from "#/routes/settings";
 import OptionService from "#/api/option-service/option-service.api";
+import { OrganizationMember } from "#/types/org";
+import * as orgStore from "#/stores/selected-organization-store";
+import { organizationService } from "#/api/organization-service/organization-service.api";
 
 // Mock the i18next hook
 vi.mock("react-i18next", async () => {
@@ -50,6 +53,30 @@ describe("Settings Screen", () => {
   vi.mock("#/query-client-config", () => ({
     queryClient: mockQueryClient,
   }));
+
+const createMockUser = (
+  overrides: Partial<OrganizationMember> = {},
+): OrganizationMember => ({
+  org_id: "org-1",
+  user_id: "user-1",
+  email: "test@example.com",
+  role: "member",
+  llm_api_key: "",
+  max_iterations: 100,
+  llm_model: "gpt-4",
+  llm_api_key_for_byor: null,
+  llm_base_url: "",
+  status: "active",
+  ...overrides,
+});
+
+const seedActiveUser = (user: Partial<OrganizationMember>) => {
+  orgStore.useSelectedOrganizationStore.setState({ organizationId: "org-1" });
+  vi.spyOn(organizationService, "getMe").mockResolvedValue(
+    createMockUser(user),
+  );
+};
+
 
   const RouterStub = createRoutesStub([
     {
@@ -127,11 +154,24 @@ describe("Settings Screen", () => {
   });
 
   it("should render the saas navbar", async () => {
-    const saasConfig = { APP_MODE: "saas" };
+    const getConfigSpy = vi.spyOn(OptionService, "getConfig");
+      getConfigSpy.mockResolvedValue({
+        APP_MODE: "saas",
+        GITHUB_CLIENT_ID: "test",
+        POSTHOG_CLIENT_KEY: "test",
+        FEATURE_FLAGS: {
+          ENABLE_BILLING: false,
+          HIDE_LLM_SETTINGS: false,
+          HIDE_BILLING: false,
+          ENABLE_JIRA: false,
+          ENABLE_JIRA_DC: false,
+          ENABLE_LINEAR: false,
+        },
+      });
 
     // Clear any existing query data and set the config
     mockQueryClient.clear();
-    mockQueryClient.setQueryData(["config"], saasConfig);
+    seedActiveUser({ role: "admin" });
 
     const sectionsToInclude = [
       "llm", // LLM settings are now always shown in SaaS mode
@@ -147,6 +187,9 @@ describe("Settings Screen", () => {
     renderSettingsScreen();
 
     const navbar = await screen.findByTestId("settings-navbar");
+    await waitFor(() => {
+      expect(within(navbar).getByText("Billing")).toBeInTheDocument();
+    });
     sectionsToInclude.forEach((section) => {
       const sectionElement = within(navbar).getByText(section, {
         exact: false, // case insensitive
@@ -246,6 +289,7 @@ describe("Settings Screen", () => {
       });
 
       mockQueryClient.clear();
+      seedActiveUser({ role: "admin" });
 
       // Act
       renderSettingsScreen();

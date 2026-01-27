@@ -13,7 +13,7 @@ import * as ToastHandlers from "#/utils/custom-toast-handlers";
 import OptionService from "#/api/option-service/option-service.api";
 import { organizationService } from "#/api/organization-service/organization-service.api";
 import { useSelectedOrganizationStore } from "#/stores/selected-organization-store";
-import type { OrganizationUserRole, OrganizationMember } from "#/types/org";
+import type { OrganizationMember } from "#/types/org";
 
 // Mock react-router hooks
 const mockUseSearchParams = vi.fn();
@@ -145,11 +145,11 @@ describe("Content", () => {
       renderLlmSettingsScreen();
       await screen.findByTestId("llm-settings-screen");
 
-      const basicFom = screen.getByTestId("llm-settings-form-basic");
-      within(basicFom).getByTestId("llm-provider-input");
-      within(basicFom).getByTestId("llm-model-input");
-      within(basicFom).getByTestId("llm-api-key-input");
-      within(basicFom).getByTestId("llm-api-key-help-anchor");
+      const basicForm = screen.getByTestId("llm-settings-form-basic");
+      within(basicForm).getByTestId("llm-provider-input");
+      within(basicForm).getByTestId("llm-model-input");
+      within(basicForm).getByTestId("llm-api-key-input");
+      within(basicForm).getByTestId("llm-api-key-help-anchor");
     });
 
     it("should render the default values if non exist", async () => {

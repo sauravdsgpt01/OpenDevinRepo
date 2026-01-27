@@ -1,9 +1,11 @@
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import { I18nKey } from "#/i18n/declaration";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
 import GitHubLogo from "#/assets/branding/github-logo.svg?react";
 import GitLabLogo from "#/assets/branding/gitlab-logo.svg?react";
 import BitbucketLogo from "#/assets/branding/bitbucket-logo.svg?react";
+import EmailIcon from "#/assets/email.svg?react";
 import { useAuthUrl } from "#/hooks/use-auth-url";
 import { GetConfigResponse } from "#/api/option-service/option.types";
 import { Provider } from "#/types/settings";
@@ -12,6 +14,8 @@ import { TermsAndPrivacyNotice } from "#/components/shared/terms-and-privacy-not
 import { useRecaptcha } from "#/hooks/use-recaptcha";
 import { useConfig } from "#/hooks/query/use-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import LoginWithEmail from "./otp-login/login-with-email";
+import GoogleSignInButton from "./google-sign-in";
 
 export interface LoginContentProps {
   githubAuthUrl: string | null;
@@ -35,6 +39,8 @@ export function LoginContent({
   const { t } = useTranslation();
   const { trackLoginButtonClick } = useTracking();
   const { data: config } = useConfig();
+
+  const [isLoggingInWithEmail, setIsLogginInWithEmail] = useState(false);
 
   // reCAPTCHA - only need token generation, verification happens at backend callback
   const { isReady: recaptchaReady, executeRecaptcha } = useRecaptcha({
@@ -199,7 +205,28 @@ export function LoginContent({
             )}
           </>
         )}
+
+        <GoogleSignInButton onCredentialResponse={() => {}} clientId="" />
+
+        <span className="text-[#A3A3A3] font-normal text-sm leading-5">
+          {t(I18nKey.AUTH$OR)}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setIsLogginInWithEmail(true)}
+          className={`${buttonBaseClasses} bg-[#454545] text-white`}
+        >
+          <EmailIcon width={14} height={14} className="shrink-0" />
+          <span className={buttonLabelClasses}>
+            {t(I18nKey.AUTH$USE_EMAIL)}
+          </span>
+        </button>
       </div>
+
+      {isLoggingInWithEmail && (
+        <LoginWithEmail setIsLogginInWithEmail={setIsLogginInWithEmail} />
+      )}
 
       <TermsAndPrivacyNotice className="max-w-[320px] text-[#A3A3A3]" />
     </div>

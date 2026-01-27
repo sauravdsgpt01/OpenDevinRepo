@@ -339,8 +339,11 @@ class DockerSandboxService(SandboxService):
         for exposed_port in self.exposed_ports:
             host_port = self._find_unused_port()
             port_mappings[exposed_port.container_port] = host_port
-            # Add port as environment variable
-            env_vars[exposed_port.name] = str(host_port)
+            # Add port as environment variable (use container port, not host port)
+            env_vars[exposed_port.name] = str(exposed_port.container_port)
+            # Add URL environment variable with the full external URL for user access
+            url = self.container_url_pattern.format(port=host_port)
+            env_vars[f'{exposed_port.name}_URL'] = url
 
         # Prepare labels
         labels = {

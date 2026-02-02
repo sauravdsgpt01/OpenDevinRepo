@@ -39,6 +39,7 @@ interface EventMessageProps {
     tooltip?: string;
   }>;
   isInLast10Actions: boolean;
+  isLastTaskTrackingObservation?: boolean;
 }
 
 /* eslint-disable react/jsx-props-no-spreading */
@@ -52,6 +53,7 @@ export function EventMessage({
   microagentPRUrl,
   actions,
   isInLast10Actions,
+  isLastTaskTrackingObservation,
 }: EventMessageProps) {
   const shouldShowConfirmationButtons =
     isLastMessage && event.source === "agent" && isAwaitingUserConfirmation;
@@ -131,6 +133,7 @@ export function EventMessage({
       <TaskTrackingEventMessage
         event={event}
         shouldShowConfirmationButtons={shouldShowConfirmationButtons}
+        isLastTaskTrackingObservation={isLastTaskTrackingObservation}
       />
     );
   }

@@ -6,11 +6,13 @@ import { ConfirmationButtons } from "#/components/shared/buttons/confirmation-bu
 interface TaskTrackingEventMessageProps {
   event: OpenHandsObservation;
   shouldShowConfirmationButtons: boolean;
+  isLastTaskTrackingObservation?: boolean;
 }
 
 export function TaskTrackingEventMessage({
   event,
   shouldShowConfirmationButtons,
+  isLastTaskTrackingObservation,
 }: TaskTrackingEventMessageProps) {
   if (!isTaskTrackingObservation(event)) {
     return null;
@@ -18,7 +20,10 @@ export function TaskTrackingEventMessage({
 
   return (
     <div>
-      <TaskTrackingObservationContent event={event} />
+      <TaskTrackingObservationContent
+        event={event}
+        isLatest={isLastTaskTrackingObservation}
+      />
       {shouldShowConfirmationButtons && <ConfirmationButtons />}
     </div>
   );

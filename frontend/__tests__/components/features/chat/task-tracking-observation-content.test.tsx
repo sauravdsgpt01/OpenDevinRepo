@@ -133,4 +133,31 @@ describe("TaskTrackingObservationContent", () => {
 
     expect(screen.queryByText("Tasks")).not.toBeInTheDocument();
   });
+
+  it("shows spinning animation for in_progress tasks when isLatest is true", () => {
+    const { container } = render(
+      <TaskTrackingObservationContent event={mockEvent} isLatest />,
+    );
+
+    const loadingIcons = container.querySelectorAll("svg.animate-spin");
+    expect(loadingIcons).toHaveLength(1);
+  });
+
+  it("does not show spinning animation for in_progress tasks when isLatest is false", () => {
+    const { container } = render(
+      <TaskTrackingObservationContent event={mockEvent} isLatest={false} />,
+    );
+
+    const loadingIcons = container.querySelectorAll("svg.animate-spin");
+    expect(loadingIcons).toHaveLength(0);
+  });
+
+  it("shows spinning animation by default when isLatest is not provided", () => {
+    const { container } = render(
+      <TaskTrackingObservationContent event={mockEvent} />,
+    );
+
+    const loadingIcons = container.querySelectorAll("svg.animate-spin");
+    expect(loadingIcons).toHaveLength(1);
+  });
 });

@@ -9,6 +9,7 @@ import {
   isOpenHandsEvent,
   isAgentStateChangeObservation,
   isFinishAction,
+  isTaskTrackingObservation,
 } from "#/types/core/guards";
 import { EventMessage } from "./event-message";
 import { ChatMessage } from "./chat-message";
@@ -70,6 +71,13 @@ export const Messages: React.FC<MessagesProps> = React.memo(
     >([]);
 
     const { t } = useTranslation();
+
+    const lastTaskTrackingIndex = React.useMemo(() => {
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        if (isTaskTrackingObservation(messages[i])) return i;
+      }
+      return -1;
+    }, [messages]);
 
     const actionHasObservationPair = React.useCallback(
       (event: OpenHandsAction | OpenHandsObservation): boolean => {
@@ -232,6 +240,7 @@ export const Messages: React.FC<MessagesProps> = React.memo(
           <EventMessage
             key={index}
             event={message}
+            isLastTaskTrackingObservation={index === lastTaskTrackingIndex}
             hasObservationPair={actionHasObservationPair(message)}
             isAwaitingUserConfirmation={isAwaitingUserConfirmation}
             isLastMessage={messages.length - 1 === index}

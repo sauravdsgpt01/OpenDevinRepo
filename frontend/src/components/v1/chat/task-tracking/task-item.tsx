@@ -10,9 +10,10 @@ import { I18nKey } from "#/i18n/declaration";
 
 interface TaskItemProps {
   task: TaskItemType;
+  isLatest?: boolean;
 }
 
-export function TaskItem({ task }: TaskItemProps) {
+export function TaskItem({ task, isLatest = true }: TaskItemProps) {
   const { t } = useTranslation();
 
   const icon = useMemo(() => {
@@ -20,13 +21,17 @@ export function TaskItem({ task }: TaskItemProps) {
       case "todo":
         return <CircleIcon className="w-4 h-4 text-[#ffffff]" />;
       case "in_progress":
-        return <LoadingIcon className="w-4 h-4 text-[#ffffff] animate-spin" />;
+        return (
+          <LoadingIcon
+            className={cn("w-4 h-4 text-[#ffffff]", isLatest && "animate-spin")}
+          />
+        );
       case "done":
         return <CheckCircleIcon className="w-4 h-4 text-[#A3A3A3]" />;
       default:
         return <CircleIcon className="w-4 h-4 text-[#ffffff]" />;
     }
-  }, [task.status]);
+  }, [task.status, isLatest]);
 
   const isDoneStatus = task.status === "done";
 

@@ -15,14 +15,18 @@ interface GenericEventMessageWrapperProps {
   event: OpenHandsEvent | SkillReadyEvent;
   isLastMessage: boolean;
   isFromPlanningAgent?: boolean;
+  isLastTaskTrackingObservation?: boolean;
 }
 
 export function GenericEventMessageWrapper({
   event,
   isLastMessage,
   isFromPlanningAgent = false,
+  isLastTaskTrackingObservation,
 }: GenericEventMessageWrapperProps) {
-  const { title, details } = getEventContent(event);
+  const { title, details } = getEventContent(event, {
+    isLastTaskTrackingObservation,
+  });
 
   // SkillReadyEvent is not an observation event, so skip the observation checks
   if (!isSkillReadyEvent(event)) {

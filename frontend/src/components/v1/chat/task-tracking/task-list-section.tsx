@@ -7,9 +7,10 @@ import { Typography } from "#/ui/typography";
 
 interface TaskListSectionProps {
   taskList: TaskItemType[];
+  isLatest?: boolean;
 }
 
-export function TaskListSection({ taskList }: TaskListSectionProps) {
+export function TaskListSection({ taskList, isLatest }: TaskListSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -25,7 +26,7 @@ export function TaskListSection({ taskList }: TaskListSectionProps) {
       {/* Task Items */}
       <div>
         {taskList.map((task, index) => (
-          <TaskItem key={`task-${index}`} task={task} />
+          <TaskItem key={`task-${index}`} task={task} isLatest={isLatest} />
         ))}
       </div>
     </div>

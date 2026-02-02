@@ -7,8 +7,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
 import { useEventStore } from "#/stores/use-event-store";
 import { useErrorMessageStore } from "#/stores/error-message-store";
@@ -40,6 +39,7 @@ import type {
   V1SendMessageRequest,
 } from "#/api/conversation-service/v1-conversation-service.types";
 import EventService from "#/api/event-service/event-service.api";
+import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
 import { useConversationStore } from "#/stores/conversation-store";
 import { isBudgetOrCreditError } from "#/utils/error-handler";
 import { useTracking } from "#/hooks/use-tracking";
@@ -64,6 +64,9 @@ interface ConversationWebSocketContextType {
 const ConversationWebSocketContext = createContext<
   ConversationWebSocketContextType | undefined
 >(undefined);
+
+const AUTO_RESUME_THROTTLE_MS = 15000;
+const CONNECTION_ERROR_DELAY_MS = 15000;
 
 export function ConversationWebSocketProvider({
   children,
@@ -93,7 +96,8 @@ export function ConversationWebSocketProvider({
 
   const queryClient = useQueryClient();
   const { addEvent } = useEventStore();
-  const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
+  const { errorMessage, setErrorMessage, removeErrorMessage } =
+    useErrorMessageStore();
   const { removeOptimisticUserMessage } = useOptimisticUserMessageStore();
   const { setExecutionStatus } = useV1ConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
@@ -125,8 +129,6 @@ export function ConversationWebSocketProvider({
     path: string;
     conversationId: string;
   } | null>(null);
-
-  const { t } = useTranslation();
 
   // Helper function to update metrics from stats event
   const updateMetricsFromStats = useCallback(
@@ -230,6 +232,207 @@ export function ConversationWebSocketProvider({
     // Default to closed if states don't match expected patterns
     return "CLOSED";
   }, [mainConnectionState, planningConnectionState, planningAgentWsUrl]);
+
+  const errorMessageRef = useRef<string | null>(errorMessage);
+  const connectionStateRef =
+    useRef<V1_WebSocketConnectionState>(connectionState);
+  const isResumingRef = useRef(false);
+  const lastResumeAttemptAtRef = useRef(0);
+  const pendingConnectionErrorRef = useRef(false);
+  const connectionErrorTimeoutRef = useRef<ReturnType<
+    typeof window.setTimeout
+  > | null>(null);
+
+  useEffect(() => {
+    errorMessageRef.current = errorMessage;
+  }, [errorMessage]);
+
+  useEffect(() => {
+    connectionStateRef.current = connectionState;
+  }, [connectionState]);
+
+  const clearConnectionErrorTimeout = useCallback(() => {
+    if (connectionErrorTimeoutRef.current) {
+      clearTimeout(connectionErrorTimeoutRef.current);
+      connectionErrorTimeoutRef.current = null;
+    }
+  }, []);
+
+  const { mutateAsync: resumeConversation } = useMutation({
+    mutationFn: (variables: {
+      conversationId: string;
+      conversationUrl: string;
+      sessionApiKey: string | null;
+    }) =>
+      V1ConversationService.resumeConversation(
+        variables.conversationId,
+        variables.conversationUrl,
+        variables.sessionApiKey,
+      ),
+  });
+
+  const scheduleConnectionError = useCallback(() => {
+    if (connectionErrorTimeoutRef.current) {
+      return;
+    }
+
+    connectionErrorTimeoutRef.current = window.setTimeout(() => {
+      connectionErrorTimeoutRef.current = null;
+
+      const shouldShowError =
+        pendingConnectionErrorRef.current &&
+        connectionStateRef.current === "CLOSED" &&
+        document.visibilityState === "visible" &&
+        (typeof navigator === "undefined" || navigator.onLine);
+
+      if (!shouldShowError) {
+        return;
+      }
+
+      if (!errorMessageRef.current) {
+        setErrorMessage(I18nKey.STATUS$CONNECTION_LOST);
+      }
+    }, CONNECTION_ERROR_DELAY_MS);
+  }, [setErrorMessage]);
+
+  const attemptAutoResume = useCallback(async () => {
+    const hasEverConnected =
+      hasConnectedRefMain.current || hasConnectedRefPlanning.current;
+    if (!hasEverConnected) {
+      return;
+    }
+
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return;
+    }
+
+    if (connectionStateRef.current !== "CLOSED") {
+      return;
+    }
+
+    const now = Date.now();
+    if (isResumingRef.current) {
+      return;
+    }
+
+    if (now - lastResumeAttemptAtRef.current < AUTO_RESUME_THROTTLE_MS) {
+      return;
+    }
+
+    isResumingRef.current = true;
+    lastResumeAttemptAtRef.current = now;
+
+    if (errorMessageRef.current === I18nKey.STATUS$CONNECTION_LOST) {
+      removeErrorMessage();
+    }
+
+    try {
+      const resumeTargets = [
+        ...(conversationId && conversationUrl
+          ? [
+              {
+                conversationId,
+                conversationUrl,
+                sessionApiKey: sessionApiKey ?? null,
+              },
+            ]
+          : []),
+        ...(subConversations || [])
+          .filter((subConversation) => subConversation?.conversation_url)
+          .map((subConversation) => ({
+            conversationId: subConversation.id,
+            conversationUrl: subConversation.conversation_url as string,
+            sessionApiKey: subConversation.session_api_key ?? null,
+          })),
+      ];
+
+      if (resumeTargets.length === 0) {
+        return;
+      }
+
+      await Promise.all(
+        resumeTargets.map((target) => resumeConversation(target)),
+      );
+    } catch (error) {
+      pendingConnectionErrorRef.current = true;
+      scheduleConnectionError();
+    } finally {
+      isResumingRef.current = false;
+    }
+  }, [
+    conversationId,
+    conversationUrl,
+    sessionApiKey,
+    subConversations,
+    removeErrorMessage,
+    resumeConversation,
+    scheduleConnectionError,
+  ]);
+
+  const triggerAutoResume = useCallback(() => {
+    attemptAutoResume().catch(() => undefined);
+  }, [attemptAutoResume]);
+
+  const handleConnectionLoss = useCallback(() => {
+    pendingConnectionErrorRef.current = true;
+    scheduleConnectionError();
+    triggerAutoResume();
+  }, [scheduleConnectionError, triggerAutoResume]);
+
+  useEffect(() => {
+    if (connectionState === "CLOSED") {
+      triggerAutoResume();
+      if (pendingConnectionErrorRef.current) {
+        scheduleConnectionError();
+      }
+    }
+  }, [connectionState, scheduleConnectionError, triggerAutoResume]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        triggerAutoResume();
+        if (pendingConnectionErrorRef.current) {
+          scheduleConnectionError();
+        }
+      }
+    };
+
+    const handleOnline = () => {
+      triggerAutoResume();
+      if (pendingConnectionErrorRef.current) {
+        scheduleConnectionError();
+      }
+    };
+
+    const handleFocus = () => {
+      triggerAutoResume();
+      if (pendingConnectionErrorRef.current) {
+        scheduleConnectionError();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [scheduleConnectionError, triggerAutoResume]);
+
+  useEffect(
+    () => () => {
+      clearConnectionErrorTimeout();
+    },
+    [clearConnectionErrorTimeout],
+  );
 
   useEffect(() => {
     if (
@@ -608,6 +811,8 @@ export function ConversationWebSocketProvider({
         setMainConnectionState("OPEN");
         hasConnectedRefMain.current = true; // Mark that we've successfully connected
         removeErrorMessage(); // Clear any previous error messages on successful connection
+        pendingConnectionErrorRef.current = false;
+        clearConnectionErrorTimeout();
 
         // Fetch expected event count for history loading detection
         if (conversationId && conversationUrl) {
@@ -634,27 +839,26 @@ export function ConversationWebSocketProvider({
         // Only show error message if we've previously connected successfully
         // This prevents showing errors during initial connection attempts (e.g., when auto-starting a conversation)
         if (event.code !== 1000 && hasConnectedRefMain.current) {
-          setErrorMessage(
-            `${t(I18nKey.STATUS$CONNECTION_LOST)}: ${event.reason || t(I18nKey.STATUS$DISCONNECTED_REFRESH_PAGE)}`,
-          );
+          handleConnectionLoss();
         }
       },
       onError: () => {
         setMainConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefMain.current) {
-          setErrorMessage("Failed to connect to server");
+          handleConnectionLoss();
         }
       },
       onMessage: handleMainMessage,
     };
   }, [
     handleMainMessage,
-    setErrorMessage,
     removeErrorMessage,
     sessionApiKey,
     conversationId,
     conversationUrl,
+    handleConnectionLoss,
+    clearConnectionErrorTimeout,
   ]);
 
   // Separate WebSocket options for planning agent connection
@@ -677,6 +881,8 @@ export function ConversationWebSocketProvider({
         setPlanningConnectionState("OPEN");
         hasConnectedRefPlanning.current = true; // Mark that we've successfully connected
         removeErrorMessage(); // Clear any previous error messages on successful connection
+        pendingConnectionErrorRef.current = false;
+        clearConnectionErrorTimeout();
 
         // Fetch expected event count for history loading detection
         if (
@@ -706,26 +912,25 @@ export function ConversationWebSocketProvider({
         // Only show error message if we've previously connected successfully
         // This prevents showing errors during initial connection attempts (e.g., when auto-starting a conversation)
         if (event.code !== 1000 && hasConnectedRefPlanning.current) {
-          setErrorMessage(
-            `${t(I18nKey.STATUS$CONNECTION_LOST)}: ${event.reason || t(I18nKey.STATUS$DISCONNECTED_REFRESH_PAGE)}`,
-          );
+          handleConnectionLoss();
         }
       },
       onError: () => {
         setPlanningConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefPlanning.current) {
-          setErrorMessage("Failed to connect to server");
+          handleConnectionLoss();
         }
       },
       onMessage: handlePlanningMessage,
     };
   }, [
     handlePlanningMessage,
-    setErrorMessage,
     removeErrorMessage,
     sessionApiKey,
     subConversations,
+    handleConnectionLoss,
+    clearConnectionErrorTimeout,
   ]);
 
   // Only attempt WebSocket connection when we have a valid URL
@@ -758,9 +963,9 @@ export function ConversationWebSocketProvider({
         // Send message through WebSocket as JSON
         currentSocket.send(JSON.stringify(message));
       } catch (error) {
-        const errorMessage =
+        const sendErrorMessage =
           error instanceof Error ? error.message : "Failed to send message";
-        setErrorMessage(errorMessage);
+        setErrorMessage(sendErrorMessage);
         throw error;
       }
     },

@@ -626,13 +626,19 @@ async def _delete_v0_conversation(conversation_id: str, user_id: str | None) -> 
     return True
 
 
-@app.get('/conversations/{conversation_id}/remember-prompt')
+@app.get('/conversations/{conversation_id}/remember-prompt', deprecated=True)
 async def get_prompt(
     event_id: int,
     conversation_id: str = Depends(validate_conversation_id),
     user_settings: SettingsStore = Depends(get_user_settings_store),
     metadata: ConversationMetadata = Depends(get_conversation_metadata),
 ):
+    """Generate a remember prompt from conversation events.
+
+    This endpoint is part of the legacy V0 API and will be removed in a future release.
+    There is no direct V1 equivalent as memory management is handled differently in V1
+    through the skills system (``GET /api/v1/app-conversations/{conversation_id}/skills``).
+    """
     # get event store for the conversation
     event_store = EventStore(
         sid=conversation_id, file_store=file_store, user_id=metadata.user_id
@@ -1197,11 +1203,17 @@ async def update_conversation(
         )
 
 
-@app.post('/conversations/{conversation_id}/exp-config')
+@app.post('/conversations/{conversation_id}/exp-config', deprecated=True)
 def add_experiment_config_for_conversation(
     exp_config: ExperimentConfig,
     conversation_id: str = Depends(validate_conversation_id),
 ) -> bool:
+    """Add experiment configuration for a conversation.
+
+    This endpoint is part of the legacy V0 API and will be removed in a future release.
+    There is no direct V1 equivalent as experiment configurations are applied internally
+    during conversation startup and do not require a separate API call.
+    """
     exp_config_filepath = get_experiment_config_filename(conversation_id)
     exists = False
     try:
@@ -1414,7 +1426,7 @@ def _create_combined_page_id(
     return base64.b64encode(json.dumps(next_page_data).encode()).decode()
 
 
-@app.get('/microagent-management/conversations')
+@app.get('/microagent-management/conversations', deprecated=True)
 async def get_microagent_management_conversations(
     selected_repository: str,
     page_id: str | None = None,
@@ -1438,6 +1450,10 @@ async def get_microagent_management_conversations(
 
     Returns:
         ConversationInfoResultSet with filtered and paginated results
+
+        This endpoint is part of the legacy V0 API and will be removed in a future release.
+        For V1 conversations, use ``GET /api/v1/app-conversations/search`` with appropriate filters
+        to find microagent management conversations.
     """
     # Parse page_id to extract V0 and V1 components
     v0_page_id, v1_page_id = _parse_combined_page_id(page_id)

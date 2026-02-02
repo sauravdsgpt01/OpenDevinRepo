@@ -47,6 +47,7 @@ app = APIRouter(
         404: {'description': 'Runtime not initialized', 'model': dict},
         500: {'description': 'Error listing or filtering files', 'model': dict},
     },
+    deprecated=True,
 )
 async def list_files(
     conversation: ServerConversation = Depends(get_conversation),
@@ -71,6 +72,9 @@ async def list_files(
 
     Raises:
         HTTPException: If there's an error listing the files.
+
+        For V1 conversations, file operations are performed through the sandbox's remote workspace.
+        Use ``GET /api/v1/app-conversations/{conversation_id}/file`` to read files from V1 conversations.
     """
     if not conversation.runtime:
         return JSONResponse(
@@ -131,6 +135,7 @@ async def list_files(
         500: {'description': 'Error opening file', 'model': dict},
         415: {'description': 'Unsupported media type', 'model': dict},
     },
+    deprecated=True,
 )
 async def select_file(
     file: str, conversation: ServerConversation = Depends(get_conversation)
@@ -152,6 +157,10 @@ async def select_file(
 
     Raises:
         HTTPException: If there's an error opening the file.
+
+        For V1 conversations, file operations are performed through the sandbox's remote workspace.
+        Use ``GET /api/v1/app-conversations/{conversation_id}/file?file_path={file_path}`` to read files
+        from V1 conversations.
     """
     runtime: Runtime = conversation.runtime
 
@@ -197,10 +206,16 @@ async def select_file(
         200: {'description': 'Zipped workspace returned as FileResponse'},
         500: {'description': 'Error zipping workspace', 'model': dict},
     },
+    deprecated=True,
 )
 def zip_current_workspace(
     conversation: ServerConversation = Depends(get_conversation),
 ) -> FileResponse | JSONResponse:
+    """Download the workspace directory as a zip file.
+
+    For V1 conversations, use ``GET /api/v1/app-conversations/{conversation_id}/download``
+    to download conversation data including workspace files.
+    """
     try:
         logger.debug('Zipping workspace')
         runtime: Runtime = conversation.runtime
@@ -234,12 +249,18 @@ def zip_current_workspace(
         404: {'description': 'Not a git repository', 'model': dict},
         500: {'description': 'Error getting changes', 'model': dict},
     },
+    deprecated=True,
 )
 async def git_changes(
     conversation: ServerConversation = Depends(get_conversation),
     conversation_store: ConversationStore = Depends(get_conversation_store),
     user_id: str = Depends(get_user_id),
 ) -> list[dict[str, str]] | JSONResponse:
+    """Get git changes in the workspace.
+
+    For V1 conversations, git operations are performed through the sandbox's remote workspace.
+    Use the V1 sandbox API to interact with the workspace and perform git operations.
+    """
     runtime: Runtime = conversation.runtime
 
     cwd = runtime.config.workspace_mount_path_in_sandbox
@@ -271,12 +292,18 @@ async def git_changes(
     '/git/diff',
     response_model=dict[str, Any],
     responses={500: {'description': 'Error getting diff', 'model': dict}},
+    deprecated=True,
 )
 async def git_diff(
     path: str,
     conversation_store: Any = Depends(get_conversation_store),
     conversation: ServerConversation = Depends(get_conversation),
 ) -> dict[str, Any] | JSONResponse:
+    """Get git diff for a file in the workspace.
+
+    For V1 conversations, git operations are performed through the sandbox's remote workspace.
+    Use the V1 sandbox API to interact with the workspace and perform git operations.
+    """
     runtime: Runtime = conversation.runtime
 
     cwd = runtime.config.workspace_mount_path_in_sandbox
@@ -292,11 +319,16 @@ async def git_diff(
         )
 
 
-@app.post('/upload-files', response_model=POSTUploadFilesModel)
+@app.post('/upload-files', response_model=POSTUploadFilesModel, deprecated=True)
 async def upload_files(
     files: list[UploadFile],
     conversation: ServerConversation = Depends(get_conversation),
 ):
+    """Upload files to the workspace.
+
+    For V1 conversations, file uploads are performed through the sandbox's remote workspace.
+    Use the V1 sandbox API to upload files to the workspace.
+    """
     uploaded_files = []
     skipped_files = []
     runtime: Runtime = conversation.runtime

@@ -24,7 +24,7 @@ app = APIRouter(
 )
 
 
-@app.post('/submit-feedback')
+@app.post('/submit-feedback', deprecated=True)
 async def submit_feedback(
     request: Request, conversation: ServerConversation = Depends(get_conversation)
 ) -> JSONResponse:
@@ -46,6 +46,10 @@ async def submit_feedback(
 
     Raises:
         HTTPException: If there's an error submitting the feedback.
+
+        This endpoint is part of the legacy V0 API for telemetry/feedback collection
+        and will be removed in a future release. There is no direct V1 equivalent as
+        feedback collection is handled differently in V1.
     """
     # Assuming the storage service is already configured in the backend
     # and there is a function to handle the storage.

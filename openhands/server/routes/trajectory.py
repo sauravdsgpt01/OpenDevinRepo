@@ -22,7 +22,7 @@ app = APIRouter(
 )
 
 
-@app.get('/trajectory')
+@app.get('/trajectory', deprecated=True)
 async def get_trajectory(
     conversation: ServerConversation = Depends(get_conversation),
 ) -> JSONResponse:
@@ -36,6 +36,9 @@ async def get_trajectory(
     Returns:
         JSONResponse: A JSON response containing the trajectory as a list of
         events.
+
+        For V1 conversations, use the V1 endpoint ``GET /api/v1/conversations/{conversation_id}/events/search``
+        to retrieve events with enhanced filtering and pagination capabilities.
     """
     try:
         async_store = AsyncEventStoreWrapper(

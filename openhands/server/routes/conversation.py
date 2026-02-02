@@ -305,7 +305,7 @@ class AddMessageRequest(BaseModel):
     message: str
 
 
-@app.post('/message')
+@app.post('/message', deprecated=True)
 async def add_message(
     data: AddMessageRequest,
     conversation: ServerConversation = Depends(get_conversation),
@@ -321,6 +321,10 @@ async def add_message(
 
     Returns:
         JSONResponse: A JSON response indicating the success of the operation
+
+        For V1 conversations, messages are sent directly from frontend to the agent server.
+        Use ``POST /conversations/{conversation_id}/events`` and the SendMessageRequest
+        object to send messages to V1 conversations.
     """
     try:
         # Create a MessageAction from the provided message text

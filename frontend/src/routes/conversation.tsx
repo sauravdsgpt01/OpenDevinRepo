@@ -29,6 +29,80 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useUnifiedResumeConversationSandbox } from "#/hooks/mutation/use-unified-start-conversation";
 import { I18nKey } from "#/i18n/declaration";
 import { useEventStore } from "#/stores/use-event-store";
+import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
+
+/**
+ * Component that handles auto-resuming the sandbox when WebSocket connection fails
+ * on initial connection (indicating the runtime is gone).
+ * This must be rendered inside the WebSocketProviderWrapper to access the context.
+ */
+function RuntimeAutoResumeHandler({
+  conversationId,
+  isV0Conversation,
+}: {
+  conversationId: string;
+  isV0Conversation: boolean;
+}) {
+  const { t } = useTranslation();
+  const { providers } = useUserProviders();
+  const { mutate: resumeSandbox, isPending: isResuming } =
+    useUnifiedResumeConversationSandbox();
+
+  // Get WebSocket context for V1 conversations
+  const wsContext = useConversationWebSocket();
+
+  // Track if we've already attempted to resume for this conversation
+  const hasAttemptedResume = React.useRef<string | null>(null);
+
+  // Effect to auto-resume sandbox when initial WebSocket connection fails (V1 only)
+  React.useEffect(() => {
+    // Only handle V1 conversations - V0 has different flow
+    if (isV0Conversation) return;
+
+    // Check if WebSocket context indicates initial connection failed
+    if (!wsContext?.initialConnectionFailed) return;
+
+    // Skip if already attempting to resume or already attempted for this conversation
+    if (isResuming || hasAttemptedResume.current === conversationId) return;
+
+    // Mark as attempted to prevent duplicate calls
+    hasAttemptedResume.current = conversationId;
+
+    // Reset the flag and trigger sandbox resume
+    wsContext.resetInitialConnectionFailed();
+
+    resumeSandbox(
+      { conversationId, providers },
+      {
+        onError: (error) => {
+          displayErrorToast(
+            t(I18nKey.CONVERSATION$FAILED_TO_START_WITH_ERROR, {
+              error: error.message,
+            }),
+          );
+        },
+      },
+    );
+  }, [
+    conversationId,
+    isV0Conversation,
+    wsContext?.initialConnectionFailed,
+    wsContext?.resetInitialConnectionFailed,
+    isResuming,
+    resumeSandbox,
+    providers,
+    t,
+  ]);
+
+  // Reset the attempted resume ref when conversation changes
+  React.useEffect(() => {
+    if (hasAttemptedResume.current !== conversationId) {
+      hasAttemptedResume.current = null;
+    }
+  }, [conversationId]);
+
+  return null; // This component only handles side effects
+}
 
 function AppContent() {
   useConversationConfig();
@@ -150,6 +224,10 @@ function AppContent() {
   const content = (
     <ConversationSubscriptionsProvider>
       <EventHandler>
+        <RuntimeAutoResumeHandler
+          conversationId={conversationId}
+          isV0Conversation={isV0Conversation}
+        />
         <div
           data-testid="app-route"
           className="p-3 md:p-0 flex flex-col h-full gap-3"

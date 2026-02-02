@@ -59,6 +59,10 @@ interface ConversationWebSocketContextType {
   connectionState: V1_WebSocketConnectionState;
   sendMessage: (message: V1SendMessageRequest) => Promise<void>;
   isLoadingHistory: boolean;
+  /** True when WebSocket connection failed before ever successfully connecting (runtime likely gone) */
+  initialConnectionFailed: boolean;
+  /** Reset the initialConnectionFailed flag (e.g., after triggering a sandbox resume) */
+  resetInitialConnectionFailed: () => void;
 }
 
 const ConversationWebSocketContext = createContext<
@@ -90,6 +94,14 @@ export function ConversationWebSocketProvider({
   // Don't show errors until after first successful connection
   const hasConnectedRefMain = React.useRef(false);
   const hasConnectedRefPlanning = React.useRef(false);
+
+  // Track if WebSocket connection failed before ever connecting (runtime likely gone)
+  const [initialConnectionFailed, setInitialConnectionFailed] = useState(false);
+
+  // Reset the initialConnectionFailed flag (e.g., after triggering a sandbox resume)
+  const resetInitialConnectionFailed = useCallback(() => {
+    setInitialConnectionFailed(false);
+  }, []);
 
   const queryClient = useQueryClient();
   const { addEvent } = useEventStore();
@@ -638,12 +650,22 @@ export function ConversationWebSocketProvider({
             `${t(I18nKey.STATUS$CONNECTION_LOST)}: ${event.reason || t(I18nKey.STATUS$DISCONNECTED_REFRESH_PAGE)}`,
           );
         }
+        // If connection closed with error before ever connecting, the runtime is likely gone
+        // Set flag so the conversation route can trigger a sandbox resume
+        if (event.code !== 1000 && !hasConnectedRefMain.current) {
+          setInitialConnectionFailed(true);
+        }
       },
       onError: () => {
         setMainConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefMain.current) {
           setErrorMessage("Failed to connect to server");
+        }
+        // If error occurred before ever connecting, the runtime is likely gone
+        // Set flag so the conversation route can trigger a sandbox resume
+        if (!hasConnectedRefMain.current) {
+          setInitialConnectionFailed(true);
         }
       },
       onMessage: handleMainMessage,
@@ -655,6 +677,7 @@ export function ConversationWebSocketProvider({
     sessionApiKey,
     conversationId,
     conversationUrl,
+    setInitialConnectionFailed,
   ]);
 
   // Separate WebSocket options for planning agent connection
@@ -826,8 +849,20 @@ export function ConversationWebSocketProvider({
   }, [planningAgentSocket, planningAgentWsUrl]);
 
   const contextValue = useMemo(
-    () => ({ connectionState, sendMessage, isLoadingHistory }),
-    [connectionState, sendMessage, isLoadingHistory],
+    () => ({
+      connectionState,
+      sendMessage,
+      isLoadingHistory,
+      initialConnectionFailed,
+      resetInitialConnectionFailed,
+    }),
+    [
+      connectionState,
+      sendMessage,
+      isLoadingHistory,
+      initialConnectionFailed,
+      resetInitialConnectionFailed,
+    ],
   );
 
   return (

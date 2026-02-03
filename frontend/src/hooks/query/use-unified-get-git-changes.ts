@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import GitService from "#/api/git-service/git-service.api";
 import V1GitService from "#/api/git-service/v1-git-service.api";
 import { useConversationId } from "#/hooks/use-conversation-id";
@@ -18,6 +18,7 @@ export const useUnifiedGetGitChanges = () => {
   const { data: conversation } = useActiveConversation();
   const [orderedChanges, setOrderedChanges] = React.useState<GitChange[]>([]);
   const previousDataRef = React.useRef<GitChange[] | null>(null);
+  const queryClient = useQueryClient();
   const runtimeIsReady = useRuntimeIsReady();
 
   const isV1Conversation = conversation?.conversation_version === "V1";
@@ -63,39 +64,42 @@ export const useUnifiedGetGitChanges = () => {
     },
   });
 
-  // Latest changes should be on top
   React.useEffect(() => {
     if (!result.isFetching && result.isSuccess && result.data) {
       const currentData = result.data;
 
-      // If this is new data (not the same reference as before)
-      if (currentData !== previousDataRef.current) {
+      const hasDataChanged =
+        JSON.stringify(currentData) !== JSON.stringify(previousDataRef.current);
+
+      if (hasDataChanged) {
         previousDataRef.current = currentData;
-
-        // Figure out new items by comparing with what we already have
-        if (Array.isArray(currentData)) {
-          const currentIds = new Set(currentData.map((item) => item.path));
-          const existingIds = new Set(orderedChanges.map((item) => item.path));
-
-          // Filter out items that already exist in orderedChanges
-          const newItems = currentData.filter(
-            (item) => !existingIds.has(item.path),
-          );
-
-          // Filter out items that no longer exist in the API response
-          const existingItems = orderedChanges.filter((item) =>
-            currentIds.has(item.path),
-          );
-
-          // Add new items to the beginning
-          setOrderedChanges([...newItems, ...existingItems]);
-        } else {
-          // If not an array, just use the data directly
-          setOrderedChanges([currentData]);
-        }
+        setOrderedChanges(
+          Array.isArray(currentData) ? currentData : [currentData],
+        );
       }
     }
   }, [result.isFetching, result.isSuccess, result.data]);
+
+  const customRefetch = React.useCallback(async () => {
+    previousDataRef.current = null;
+    await queryClient.invalidateQueries({
+      queryKey: [
+        "file_changes",
+        conversationId,
+        isV1Conversation,
+        conversationUrl,
+        gitPath,
+      ],
+    });
+    return result.refetch();
+  }, [
+    queryClient,
+    conversationId,
+    isV1Conversation,
+    conversationUrl,
+    gitPath,
+    result.refetch,
+  ]);
 
   return {
     data: orderedChanges,
@@ -103,6 +107,6 @@ export const useUnifiedGetGitChanges = () => {
     isSuccess: result.isSuccess,
     isError: result.isError,
     error: result.error,
-    refetch: result.refetch,
+    refetch: customRefetch,
   };
 };

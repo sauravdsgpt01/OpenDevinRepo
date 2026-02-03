@@ -10,6 +10,8 @@ interface ConversationCardActionsProps {
   onDelete?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onStop?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onEdit?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onArchive?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  isArchived?: boolean;
   onDownloadViaVSCode?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   conversationStatus?: ConversationStatus;
@@ -23,6 +25,8 @@ export function ConversationCardActions({
   onDelete,
   onStop,
   onEdit,
+  onArchive,
+  isArchived,
   onDownloadViaVSCode,
   onDownloadConversation,
   conversationStatus,
@@ -66,6 +70,8 @@ export function ConversationCardActions({
               : undefined
           }
           onEdit={onEdit}
+          onArchive={onArchive}
+          isArchived={isArchived}
           onDownloadViaVSCode={
             conversationId && showOptions ? onDownloadViaVSCode : undefined
           }

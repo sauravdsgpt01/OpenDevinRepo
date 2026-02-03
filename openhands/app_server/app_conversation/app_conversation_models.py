@@ -86,6 +86,7 @@ class AppConversationInfo(BaseModel):
     sub_conversation_ids: list[OpenHandsUUID] = Field(default_factory=list)
 
     public: bool | None = None
+    archived: bool = False
 
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

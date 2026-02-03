@@ -15,6 +15,8 @@ interface ConversationCardProps {
   onDelete?: () => void;
   onStop?: () => void;
   onChangeTitle?: (title: string) => void;
+  onArchive?: () => void;
+  isArchived?: boolean;
   showOptions?: boolean;
   title: string;
   selectedRepository: RepositorySelection | null;
@@ -32,6 +34,8 @@ export function ConversationCard({
   onDelete,
   onStop,
   onChangeTitle,
+  onArchive,
+  isArchived,
   showOptions,
   title,
   selectedRepository,
@@ -115,7 +119,19 @@ export function ConversationCard({
     onContextMenuToggle?.(false);
   };
 
-  const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
+  const handleArchive = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onArchive?.();
+    onContextMenuToggle?.(false);
+  };
+
+  const hasContextMenu = !!(
+    onDelete ||
+    onChangeTitle ||
+    showOptions ||
+    onArchive
+  );
 
   return (
     <div
@@ -143,6 +159,8 @@ export function ConversationCard({
             onDelete={onDelete && handleDelete}
             onStop={onStop && handleStop}
             onEdit={onChangeTitle && handleEdit}
+            onArchive={onArchive && handleArchive}
+            isArchived={isArchived}
             onDownloadViaVSCode={handleDownloadViaVSCode}
             onDownloadConversation={
               conversationVersion === "V1"

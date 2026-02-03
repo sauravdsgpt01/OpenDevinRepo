@@ -958,8 +958,11 @@ def _get_contextual_events(event_store: EventStore, event_id: int) -> str:
 class UpdateConversationRequest(BaseModel):
     """Request model for updating conversation metadata."""
 
-    title: str = Field(
-        ..., min_length=1, max_length=200, description='New conversation title'
+    title: str | None = Field(
+        default=None, min_length=1, max_length=200, description='New conversation title'
+    )
+    archived: bool | None = Field(
+        default=None, description='Whether the conversation is archived'
     )
 
     model_config = ConfigDict(extra='forbid')
@@ -967,16 +970,18 @@ class UpdateConversationRequest(BaseModel):
 
 async def _update_v1_conversation(
     conversation_uuid: uuid.UUID,
-    new_title: str,
+    new_title: str | None,
+    archived: bool | None,
     user_id: str | None,
     app_conversation_info_service: AppConversationInfoService,
     app_conversation_service: AppConversationService,
 ) -> JSONResponse | bool:
-    """Update a V1 conversation title.
+    """Update a V1 conversation.
 
     Args:
         conversation_uuid: The conversation ID as a UUID
-        new_title: The new title to set
+        new_title: The new title to set (optional)
+        archived: Whether the conversation is archived (optional)
         user_id: The authenticated user ID
         app_conversation_info_service: The app conversation info service
         app_conversation_service: The app conversation service for agent-server communication
@@ -1014,9 +1019,12 @@ async def _update_v1_conversation(
             status_code=status.HTTP_403_FORBIDDEN,
         )
 
-    # Update the title and timestamp
+    # Update fields if provided
     original_title = app_conversation_info.title
-    app_conversation_info.title = new_title
+    if new_title is not None:
+        app_conversation_info.title = new_title
+    if archived is not None:
+        app_conversation_info.archived = archived
     app_conversation_info.updated_at = datetime.now(timezone.utc)
 
     # Save the updated conversation info
@@ -1039,20 +1047,23 @@ async def _update_v1_conversation(
             status_code=status.HTTP_403_FORBIDDEN,
         )
 
-    # Try to update the agent-server as well
-    try:
-        if hasattr(app_conversation_service, 'update_agent_server_conversation_title'):
-            await app_conversation_service.update_agent_server_conversation_title(
-                conversation_id=conversation_id,
-                new_title=new_title,
-                app_conversation_info=app_conversation_info,
+    # Try to update the agent-server as well (only for title changes)
+    if new_title is not None:
+        try:
+            if hasattr(
+                app_conversation_service, 'update_agent_server_conversation_title'
+            ):
+                await app_conversation_service.update_agent_server_conversation_title(
+                    conversation_id=conversation_id,
+                    new_title=new_title,
+                    app_conversation_info=app_conversation_info,
+                )
+        except Exception as e:
+            # Log the error but don't fail the database update
+            logger.warning(
+                f'Failed to update agent-server for conversation {conversation_uuid}: {e}',
+                extra={'session_id': conversation_id, 'user_id': user_id},
             )
-    except Exception as e:
-        # Log the error but don't fail the database update
-        logger.warning(
-            f'Failed to update agent-server for conversation {conversation_uuid}: {e}',
-            extra={'session_id': conversation_id, 'user_id': user_id},
-        )
 
     logger.info(
         f'Successfully updated V1 conversation {conversation_uuid} title from "{original_title}" to "{app_conversation_info.title}"',
@@ -1064,15 +1075,17 @@ async def _update_v1_conversation(
 
 async def _update_v0_conversation(
     conversation_id: str,
-    new_title: str,
+    new_title: str | None,
+    archived: bool | None,
     user_id: str | None,
     conversation_store: ConversationStore,
 ) -> JSONResponse | bool:
-    """Update a V0 conversation title.
+    """Update a V0 conversation.
 
     Args:
         conversation_id: The conversation ID
-        new_title: The new title to set
+        new_title: The new title to set (optional)
+        archived: Whether the conversation is archived (optional)
         user_id: The authenticated user ID
         conversation_store: The conversation store
 
@@ -1107,7 +1120,10 @@ async def _update_v0_conversation(
 
     # Update the conversation metadata
     original_title = metadata.title
-    metadata.title = new_title
+    if new_title is not None:
+        metadata.title = new_title
+    if archived is not None:
+        metadata.archived = archived
     metadata.last_updated_at = datetime.now(timezone.utc)
 
     # Save the updated metadata
@@ -1172,11 +1188,11 @@ async def update_conversation(
         which provides the same functionality for updating conversation metadata.
     """
     logger.info(
-        f'Updating conversation {conversation_id} with title: {data.title}',
+        f'Updating conversation {conversation_id} with title: {data.title}, archived: {data.archived}',
         extra={'session_id': conversation_id, 'user_id': user_id},
     )
 
-    new_title = data.title.strip()
+    new_title = data.title.strip() if data.title else None
 
     # Try to handle as V1 conversation first
     try:
@@ -1184,6 +1200,7 @@ async def update_conversation(
         result = await _update_v1_conversation(
             conversation_uuid=conversation_uuid,
             new_title=new_title,
+            archived=data.archived,
             user_id=user_id,
             app_conversation_info_service=app_conversation_info_service,
             app_conversation_service=app_conversation_service,
@@ -1208,6 +1225,7 @@ async def update_conversation(
         return await _update_v0_conversation(
             conversation_id=conversation_id,
             new_title=new_title,
+            archived=data.archived,
             user_id=user_id,
             conversation_store=conversation_store,
         )
@@ -1582,4 +1600,5 @@ def _to_conversation_info(app_conversation: AppConversation) -> ConversationInfo
             sub_id.hex for sub_id in app_conversation.sub_conversation_ids
         ],
         public=app_conversation.public,
+        archived=app_conversation.archived,
     )

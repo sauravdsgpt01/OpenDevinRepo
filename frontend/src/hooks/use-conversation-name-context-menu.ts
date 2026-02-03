@@ -10,6 +10,7 @@ import { useDeleteConversation } from "./mutation/use-delete-conversation";
 import { useUnifiedPauseConversationSandbox } from "./mutation/use-unified-stop-conversation";
 import { useGetTrajectory } from "./mutation/use-get-trajectory";
 import { useUpdateConversationPublicFlag } from "./mutation/use-update-conversation-public-flag";
+import { useArchiveConversation } from "./mutation/use-archive-conversation";
 import { downloadTrajectory } from "#/utils/download-trajectory";
 import {
   displayErrorToast,
@@ -47,6 +48,7 @@ export function useConversationNameContextMenu({
   const { mutate: stopConversation } = useUnifiedPauseConversationSandbox();
   const { mutate: getTrajectory } = useGetTrajectory();
   const { mutate: updatePublicFlag } = useUpdateConversationPublicFlag();
+  const { mutate: archiveConversation } = useArchiveConversation();
   const { data: conversation } = useActiveConversation();
   const metrics = useMetricsStore();
 
@@ -222,6 +224,34 @@ export function useConversationNameContextMenu({
     displaySuccessToast(t(I18nKey.CONVERSATION$LINK_COPIED));
   };
 
+  const handleArchive = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (conversationId && conversation) {
+      const newArchivedState = !conversation.archived;
+      archiveConversation(
+        { conversationId, archived: newArchivedState },
+        {
+          onSuccess: () => {
+            displaySuccessToast(
+              t(
+                newArchivedState
+                  ? I18nKey.CONVERSATION$CONVERSATION_ARCHIVED
+                  : I18nKey.CONVERSATION$CONVERSATION_UNARCHIVED,
+              ),
+            );
+            // Navigate to home when archiving the current conversation
+            if (newArchivedState && conversationId === currentConversationId) {
+              navigate("/");
+            }
+          },
+        },
+      );
+    }
+    onContextMenuToggle?.(false);
+  };
+
   return {
     // Handlers
     handleDelete,
@@ -235,6 +265,7 @@ export function useConversationNameContextMenu({
     handleShowSkills,
     handleTogglePublic,
     handleCopyShareLink,
+    handleArchive,
     shareUrl,
     handleConfirmDelete,
     handleConfirmStop,
@@ -267,5 +298,6 @@ export function useConversationNameContextMenu({
     shouldShowDisplayCost: showOptions,
     shouldShowAgentTools: Boolean(showOptions && systemMessage),
     shouldShowSkills: Boolean(showOptions && conversationId),
+    isArchived: conversation?.archived ?? false,
   };
 }

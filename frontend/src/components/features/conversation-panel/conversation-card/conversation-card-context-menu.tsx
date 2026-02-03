@@ -13,6 +13,7 @@ import DownloadIcon from "#/icons/u-download.svg?react";
 import CreditCardIcon from "#/icons/u-credit-card.svg?react";
 import CloseIcon from "#/icons/u-close.svg?react";
 import DeleteIcon from "#/icons/u-delete.svg?react";
+import FolderIcon from "#/icons/folder.svg?react";
 import { Divider } from "#/ui/divider";
 
 interface ConversationCardContextMenuProps {
@@ -25,6 +26,8 @@ interface ConversationCardContextMenuProps {
   onShowSkills?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadViaVSCode?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onArchive?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  isArchived?: boolean;
   position?: "top" | "bottom";
 }
 
@@ -41,6 +44,8 @@ export function ConversationCardContextMenu({
   onShowSkills,
   onDownloadViaVSCode,
   onDownloadConversation,
+  onArchive,
+  isArchived,
   position = "bottom",
 }: ConversationCardContextMenuProps) {
   const { t } = useTranslation();
@@ -178,6 +183,23 @@ export function ConversationCardContextMenu({
               <ConversationNameContextMenuIconText
                 icon={<CreditCardIcon width={16} height={16} />}
                 text={t(I18nKey.BUTTON$DISPLAY_COST)}
+              />
+            </ContextMenuListItem>
+          ),
+          onArchive && (
+            <ContextMenuListItem
+              key="archive-button"
+              testId="archive-button"
+              onClick={onArchive}
+              className={contextMenuListItemClassName}
+            >
+              <ConversationNameContextMenuIconText
+                icon={<FolderIcon width={16} height={16} />}
+                text={t(
+                  isArchived
+                    ? I18nKey.CONVERSATION$UNARCHIVE
+                    : I18nKey.CONVERSATION$ARCHIVE,
+                )}
               />
             </ContextMenuListItem>
           ),

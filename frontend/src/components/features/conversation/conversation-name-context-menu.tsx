@@ -19,6 +19,7 @@ import CloseIcon from "#/icons/u-close.svg?react";
 import DeleteIcon from "#/icons/u-delete.svg?react";
 import LinkIcon from "#/icons/link-external.svg?react";
 import CopyIcon from "#/icons/copy.svg?react";
+import FolderIcon from "#/icons/folder.svg?react";
 import { ConversationNameContextMenuIconText } from "./conversation-name-context-menu-icon-text";
 import { CONTEXT_MENU_ICON_TEXT_CLASSNAME } from "#/utils/constants";
 
@@ -40,6 +41,8 @@ interface ConversationNameContextMenuProps {
   onTogglePublic?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onCopyShareLink?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onArchive?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  isArchived?: boolean;
   shareUrl?: string;
   position?: "top" | "bottom";
 }
@@ -57,6 +60,8 @@ export function ConversationNameContextMenu({
   onTogglePublic,
   onDownloadConversation,
   onCopyShareLink,
+  onArchive,
+  isArchived,
   shareUrl,
   position = "bottom",
 }: ConversationNameContextMenuProps) {
@@ -249,6 +254,24 @@ export function ConversationNameContextMenu({
           <ConversationNameContextMenuIconText
             icon={<CloseIcon width={16} height={16} />}
             text={t(I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME)}
+            className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
+          />
+        </ContextMenuListItem>
+      )}
+
+      {onArchive && (
+        <ContextMenuListItem
+          testId="archive-button"
+          onClick={onArchive}
+          className={contextMenuListItemClassName}
+        >
+          <ConversationNameContextMenuIconText
+            icon={<FolderIcon width={16} height={16} />}
+            text={t(
+              isArchived
+                ? I18nKey.CONVERSATION$UNARCHIVE
+                : I18nKey.CONVERSATION$ARCHIVE,
+            )}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
         </ContextMenuListItem>

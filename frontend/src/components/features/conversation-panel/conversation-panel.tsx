@@ -7,6 +7,7 @@ import { useStartTasks } from "#/hooks/query/use-start-tasks";
 import { useInfiniteScroll } from "#/hooks/use-infinite-scroll";
 import { useDeleteConversation } from "#/hooks/mutation/use-delete-conversation";
 import { useUnifiedPauseConversationSandbox } from "#/hooks/mutation/use-unified-stop-conversation";
+import { useArchiveConversation } from "#/hooks/mutation/use-archive-conversation";
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { ConfirmStopModal } from "./confirm-stop-modal";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -18,6 +19,7 @@ import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { ConversationCard } from "./conversation-card/conversation-card";
 import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
+import { ArchivedConversationsAccordion } from "./archived-conversations-accordion";
 
 interface ConversationPanelProps {
   onClose: () => void;
@@ -61,12 +63,17 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   const { data: startTasks } = useStartTasks();
 
   // Flatten all pages into a single array of conversations
-  const conversations = data?.pages.flatMap((page) => page.results) ?? [];
+  const allConversations = data?.pages.flatMap((page) => page.results) ?? [];
+
+  // Separate active and archived conversations
+  const activeConversations = allConversations.filter((c) => !c.archived);
+  const archivedConversations = allConversations.filter((c) => c.archived);
 
   const { mutate: deleteConversation } = useDeleteConversation();
   const { mutate: pauseConversationSandbox } =
     useUnifiedPauseConversationSandbox();
   const { mutate: updateConversation } = useUpdateConversation();
+  const { mutate: archiveConversation } = useArchiveConversation();
 
   // Set up infinite scroll
   const scrollContainerRef = useInfiniteScroll({
@@ -100,6 +107,26 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
       {
         onSuccess: () => {
           displaySuccessToast(t(I18nKey.CONVERSATION$TITLE_UPDATED));
+        },
+      },
+    );
+  };
+
+  const handleArchiveConversation = (
+    conversationId: string,
+    archived: boolean,
+  ) => {
+    archiveConversation(
+      { conversationId, archived },
+      {
+        onSuccess: () => {
+          displaySuccessToast(
+            t(
+              archived
+                ? I18nKey.CONVERSATION$CONVERSATION_ARCHIVED
+                : I18nKey.CONVERSATION$CONVERSATION_UNARCHIVED,
+            ),
+          );
         },
       },
     );
@@ -140,7 +167,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
       data-testid="conversation-panel"
       className="w-full md:w-[400px] h-full border border-[#525252] bg-[#25272D] rounded-lg overflow-y-auto absolute custom-scrollbar-always"
     >
-      {isFetching && conversations.length === 0 && (
+      {isFetching && allConversations.length === 0 && (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, index) => (
             <ConversationCardSkeleton key={index} />
@@ -153,7 +180,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           <p className="text-danger">{error.message}</p>
         </div>
       )}
-      {!isFetching && conversations?.length === 0 && !startTasks?.length && (
+      {!isFetching && allConversations?.length === 0 && !startTasks?.length && (
         <div className="flex flex-col items-center justify-center h-full">
           <p className="text-neutral-400">
             {t(I18nKey.CONVERSATION$NO_CONVERSATIONS)}
@@ -170,8 +197,8 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           <StartTaskCard task={task} />
         </NavLink>
       ))}
-      {/* Then render completed conversations */}
-      {conversations?.map((project) => (
+      {/* Then render active (non-archived) conversations */}
+      {activeConversations?.map((project) => (
         <NavLink
           key={project.conversation_id}
           to={`/conversations/${project.conversation_id}`}
@@ -190,6 +217,10 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
             onChangeTitle={(title) =>
               handleConversationTitleChange(project.conversation_id, title)
             }
+            onArchive={() =>
+              handleArchiveConversation(project.conversation_id, true)
+            }
+            isArchived={false}
             title={project.title}
             selectedRepository={{
               selected_repository: project.selected_repository,
@@ -208,6 +239,18 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           />
         </NavLink>
       ))}
+
+      {/* Archived conversations accordion */}
+      <ArchivedConversationsAccordion
+        conversations={archivedConversations}
+        onClose={onClose}
+        onDelete={handleDeleteProject}
+        onStop={handleStopConversation}
+        onChangeTitle={handleConversationTitleChange}
+        onArchive={handleArchiveConversation}
+        openContextMenuId={openContextMenuId}
+        setOpenContextMenuId={setOpenContextMenuId}
+      />
 
       {/* Loading indicator for fetching more conversations */}
       {isFetchingNextPage && (

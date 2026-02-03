@@ -37,6 +37,7 @@ export function ConversationName() {
     handleExportConversation,
     handleTogglePublic,
     handleCopyShareLink,
+    handleArchive,
     shareUrl,
     handleConfirmDelete,
     handleConfirmStop,
@@ -58,6 +59,7 @@ export function ConversationName() {
     shouldShowDisplayCost,
     shouldShowAgentTools,
     shouldShowSkills,
+    isArchived,
   } = useConversationNameContextMenu({
     conversationId,
     conversationStatus: conversation?.status,
@@ -194,6 +196,8 @@ export function ConversationName() {
                     ? handleDownloadConversation
                     : undefined
                 }
+                onArchive={handleArchive}
+                isArchived={isArchived}
                 position="bottom"
               />
             )}

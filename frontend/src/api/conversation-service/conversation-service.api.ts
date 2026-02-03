@@ -336,7 +336,7 @@ class ConversationService {
 
   static async updateConversation(
     conversationId: string,
-    updates: { title: string },
+    updates: { title?: string; archived?: boolean },
   ): Promise<boolean> {
     const { data } = await openHands.patch<boolean>(
       `/api/conversations/${conversationId}`,

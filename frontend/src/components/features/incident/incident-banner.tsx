@@ -1,0 +1,75 @@
+import { useLocalStorage } from "@uidotdev/usehooks";
+import { FaTriangleExclamation, FaXmark } from "react-icons/fa6";
+import { useTranslation } from "react-i18next";
+import type {
+  Incident,
+  Maintenance,
+} from "#/api/option-service/incident.types";
+import { cn } from "#/utils/utils";
+import { Typography } from "#/ui/typography";
+
+interface IncidentBannerProps {
+  incident: Incident | Maintenance;
+}
+
+const STATUS_COLOR_MAP: Record<string, string> = {
+  investigating: "bg-red-500",
+  identified: "bg-orange-500",
+  monitoring: "bg-yellow-500",
+  resolved: "bg-green-500",
+  maintenance_scheduled: "bg-blue-500",
+  maintenance_in_progress: "bg-blue-500",
+  maintenance_complete: "bg-green-500",
+};
+
+export function IncidentBanner({ incident }: IncidentBannerProps) {
+  const { t } = useTranslation();
+  const [dismissedIds, setDismissedIncidents] = useLocalStorage<Record<
+    string,
+    boolean
+  > | null>("dismissed_incidents", null);
+
+  const isDismissed = dismissedIds?.[incident.id] || false;
+  const bannerColor = STATUS_COLOR_MAP[incident.status] ?? "bg-gray-500";
+
+  const handleDismiss = () => {
+    const updated = { ...dismissedIds, [incident.id]: true };
+    setDismissedIncidents(updated);
+  };
+
+  if (isDismissed) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        bannerColor,
+        "text-white rounded m-1 p-4 flex items-center gap-4",
+      )}
+    >
+      <FaTriangleExclamation className="text-xl flex-shrink-0" />
+
+      <div className="flex-1">
+        <Typography.Text>{incident.name}</Typography.Text>
+        <Typography.Text className="text-sm opacity-90">
+          {incident.last_update_message}
+        </Typography.Text>
+        <Typography.Text className="text-xs underline hover:opacity-80">
+          <a href={incident.url} target="_blank" rel="noopener noreferrer">
+            {t("COMMONT$VIEW_DETAILS")}
+          </a>
+        </Typography.Text>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleDismiss}
+        className="bg-white/20 hover:bg-white/30 cursor-pointer rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0"
+        aria-label={t("COMMONT$DISMISS")}
+      >
+        <FaXmark className="text-xs" />
+      </button>
+    </div>
+  );
+}

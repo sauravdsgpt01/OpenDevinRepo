@@ -40,6 +40,7 @@ from server.routes.mcp_patch import patch_mcp_server  # noqa: E402
 from server.routes.oauth_device import oauth_device_router  # noqa: E402
 from server.routes.orgs import org_router  # noqa: E402
 from server.routes.readiness import readiness_router  # noqa: E402
+from server.routes.status import router as status_router  # noqa: E402
 from server.routes.user import saas_user_router  # noqa: E402
 from server.sharing.shared_conversation_router import (  # noqa: E402
     router as shared_conversation_router,
@@ -75,6 +76,7 @@ base_app.include_router(
 )  # Add routes for credit management and Stripe payment integration
 base_app.include_router(shared_conversation_router)
 base_app.include_router(shared_event_router)
+base_app.include_router(status_router)
 
 # Add GitHub integration router only if GITHUB_APP_CLIENT_ID is set
 if GITHUB_APP_CLIENT_ID:

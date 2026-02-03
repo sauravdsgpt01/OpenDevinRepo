@@ -30,6 +30,11 @@ import { MaintenanceBanner } from "#/components/features/maintenance/maintenance
 import { cn, isMobileDevice } from "#/utils/utils";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
+import {
+  InProgressMaintenanceBanners,
+  OngoingIncidentBanners,
+  ScheduledMaintenanceBanners,
+} from "#/components/features/incident/banners";
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -228,6 +233,13 @@ export default function MainApp() {
       <div className="flex flex-col w-full h-[calc(100%-50px)] md:h-full gap-3">
         {config.data?.MAINTENANCE && (
           <MaintenanceBanner startTime={config.data.MAINTENANCE.startTime} />
+        )}
+        {config.data?.APP_MODE === "saas" && (
+          <>
+            <OngoingIncidentBanners />
+            <InProgressMaintenanceBanners />
+            <ScheduledMaintenanceBanners />
+          </>
         )}
         <div
           id="root-outlet"

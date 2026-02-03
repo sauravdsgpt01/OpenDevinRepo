@@ -27,11 +27,11 @@ Optional environment variables:
 
 import os
 import sys
-import time
 from typing import Any, Dict, List, Optional
 
 import resend
 from keycloak.exceptions import KeycloakError
+from ratelimit import limits, sleep_and_retry
 from resend.exceptions import ResendError
 from server.auth.token_manager import get_keycloak_admin
 from tenacity import (
@@ -42,6 +42,10 @@ from tenacity import (
 )
 
 from openhands.core.logger import openhands_logger as logger
+
+# Rate limit: 2 calls per 1 second (Resend API limit)
+RATE_LIMIT_CALLS = 2
+RATE_LIMIT_PERIOD = 1  # seconds
 
 # Get Keycloak configuration from environment variables
 KEYCLOAK_SERVER_URL = os.environ.get('KEYCLOAK_SERVER_URL', '')
@@ -161,6 +165,8 @@ def get_total_keycloak_users() -> int:
         raise
 
 
+@sleep_and_retry
+@limits(calls=RATE_LIMIT_CALLS, period=RATE_LIMIT_PERIOD)
 def get_resend_contacts(audience_id: str) -> Dict[str, Dict[str, Any]]:
     """Get contacts from Resend.
 
@@ -185,6 +191,8 @@ def get_resend_contacts(audience_id: str) -> Dict[str, Dict[str, Any]]:
         raise
 
 
+@sleep_and_retry
+@limits(calls=RATE_LIMIT_CALLS, period=RATE_LIMIT_PERIOD)
 @retry(
     stop=stop_after_attempt(MAX_RETRIES),
     wait=wait_exponential(
@@ -192,7 +200,7 @@ def get_resend_contacts(audience_id: str) -> Dict[str, Dict[str, Any]]:
         max=MAX_BACKOFF_SECONDS,
         exp_base=BACKOFF_FACTOR,
     ),
-    retry=retry_if_exception_type((ResendError, KeycloakClientError)),
+    retry=retry_if_exception_type((ConnectionError, TimeoutError)),
 )
 def add_contact_to_resend(
     audience_id: str,
@@ -229,6 +237,8 @@ def add_contact_to_resend(
         raise
 
 
+@sleep_and_retry
+@limits(calls=RATE_LIMIT_CALLS, period=RATE_LIMIT_PERIOD)
 def send_welcome_email(
     email: str,
     first_name: Optional[str] = None,
@@ -360,27 +370,24 @@ def sync_users_to_resend():
                     last_name = user.get('last_name')
 
                     # Add the contact to the Resend audience
+                    # Rate limiting is handled by the @limits decorator
                     add_contact_to_resend(
                         RESEND_AUDIENCE_ID, email, first_name, last_name
                     )
                     logger.info(f'Added user {email} to Resend')
                     stats['added_contacts'] += 1
 
-                    # Sleep to respect rate limit after first API call
-                    time.sleep(1 / RATE_LIMIT)
-
                     # Send a welcome email to the newly added contact
+                    # Rate limiting is handled by the @limits decorator
                     try:
                         send_welcome_email(email, first_name, last_name)
                         logger.info(f'Sent welcome email to {email}')
                     except Exception:
                         logger.exception(
-                            f'Failed to send welcome email to {email}, but contact was added to audience'
+                            f'Failed to send welcome email to {email}, '
+                            f'but contact was added to audience'
                         )
                         # Continue with the sync process even if sending the welcome email fails
-
-                    # Sleep to respect rate limit after second API call
-                    time.sleep(1 / RATE_LIMIT)
                 except Exception:
                     logger.exception(f'Error adding user {email} to Resend')
                     stats['errors'] += 1

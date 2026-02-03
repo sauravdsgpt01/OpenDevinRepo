@@ -197,6 +197,7 @@ opentelemetry-exporter-otlp-proto-grpc = "^1.33.1"
 
 libtmux = ">=0.46.2"
 pygithub = "^2.5.0"
+ratelimit = "^2.2.1"
 joblib = "*"
 openhands-aci = "0.3.2"
 python-socketio = "5.13.0"

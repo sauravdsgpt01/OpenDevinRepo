@@ -174,6 +174,44 @@ class EventStore(EventStoreABC):
         index -= offset
         return self._load_cache_page(index, index + self.cache_size)
 
+    def clear_events(self) -> int:
+        """Clear all events from the event store.
+
+        Returns:
+            The number of events that were deleted.
+        """
+        events_dir = get_conversation_events_dir(self.sid, self.user_id)
+        deleted_count = 0
+
+        try:
+            event_files = self.file_store.list(events_dir)
+            for event_file in event_files:
+                try:
+                    self.file_store.delete(event_file)
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(f'Failed to delete event file {event_file}: {e}')
+
+            # Also clear the event cache directory
+            cache_dir = f'{get_conversation_dir(self.sid, self.user_id)}event_cache/'
+            try:
+                cache_files = self.file_store.list(cache_dir)
+                for cache_file in cache_files:
+                    try:
+                        self.file_store.delete(cache_file)
+                    except Exception as e:
+                        logger.warning(f'Failed to delete cache file {cache_file}: {e}')
+            except FileNotFoundError:
+                pass  # No cache directory exists
+
+            # Reset the current event ID
+            self._cur_id = 0
+
+        except FileNotFoundError:
+            logger.debug(f'No events found for session {self.sid}')
+
+        return deleted_count
+
     @staticmethod
     def _get_id_from_filename(filename: str) -> int:
         try:

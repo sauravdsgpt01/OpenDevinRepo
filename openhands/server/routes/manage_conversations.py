@@ -668,6 +668,102 @@ async def _delete_v0_conversation(conversation_id: str, user_id: str | None) -> 
     return True
 
 
+class ClearEventsResponse(BaseModel):
+    """Response model for clear events endpoint."""
+
+    status: str
+    deleted_count: int
+    message: str
+
+
+async def _clear_v1_conversation(
+    conversation_id: str,
+    app_conversation_info_service: AppConversationInfoService,
+) -> ClearEventsResponse | None:
+    """Try to clear a V1 conversation. Returns None if not a V1 conversation."""
+    try:
+        conversation_uuid = uuid.UUID(conversation_id)
+        app_conversation_info = (
+            await app_conversation_info_service.get_app_conversation_info(
+                conversation_uuid
+            )
+        )
+        if app_conversation_info:
+            # This is a V1 conversation
+            # V1 clear is not yet implemented - return a message indicating this
+            return ClearEventsResponse(
+                status='error',
+                deleted_count=0,
+                message='Clear is not yet supported for V1 conversations. Please start a new conversation.',
+            )
+    except (ValueError, TypeError):
+        # Not a valid UUID, not a V1 conversation
+        pass
+    except Exception as e:
+        logger.warning(f'Error checking V1 conversation {conversation_id}: {str(e)}')
+
+    return None
+
+
+async def _clear_v0_conversation(
+    conversation_id: str,
+    user_id: str | None,
+) -> ClearEventsResponse:
+    """Clear a V0 conversation's events."""
+    # Create event store for the conversation
+    event_store = EventStore(
+        sid=conversation_id, file_store=file_store, user_id=user_id
+    )
+
+    # Clear all events
+    deleted_count = event_store.clear_events()
+
+    return ClearEventsResponse(
+        status='success',
+        deleted_count=deleted_count,
+        message=f'Cleared {deleted_count} events from conversation',
+    )
+
+
+@app.post('/conversations/{conversation_id}/clear')
+async def clear_conversation_events(
+    conversation_id: str = Depends(validate_conversation_id),
+    user_id: str | None = Depends(get_user_id),
+    app_conversation_info_service: AppConversationInfoService = app_conversation_info_service_dependency,
+) -> ClearEventsResponse:
+    """Clear all events from a conversation while keeping the conversation session.
+
+    This endpoint deletes all event history from a conversation, effectively
+    resetting the chat history while preserving the conversation metadata
+    and session. The conversation will continue with a fresh state.
+
+    Supports both V0 and V1 conversations.
+
+    Returns:
+        ClearEventsResponse with the number of deleted events.
+    """
+    # Try V1 conversation first
+    v1_result = await _clear_v1_conversation(
+        conversation_id, app_conversation_info_service
+    )
+    if v1_result is not None:
+        return v1_result
+
+    # Handle as V0 conversation
+    try:
+        return await _clear_v0_conversation(conversation_id, user_id)
+    except FileNotFoundError:
+        logger.warning(f'Conversation {conversation_id} not found for clear')
+        return JSONResponse(
+            content={
+                'status': 'error',
+                'deleted_count': 0,
+                'message': 'Conversation not found',
+            },
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+
 @app.get('/conversations/{conversation_id}/remember-prompt')
 async def get_prompt(
     event_id: int,

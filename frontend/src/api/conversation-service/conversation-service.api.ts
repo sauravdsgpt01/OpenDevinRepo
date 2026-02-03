@@ -392,6 +392,22 @@ class ConversationService {
     );
     return response.data;
   }
+
+  /**
+   * Clear all events from a conversation while keeping the session
+   * @param conversationId ID of the conversation
+   * @returns Response with status and number of deleted events
+   */
+  static async clearConversation(
+    conversationId: string,
+  ): Promise<{ status: string; deleted_count: number; message: string }> {
+    const { data } = await openHands.post<{
+      status: string;
+      deleted_count: number;
+      message: string;
+    }>(`/api/conversations/${conversationId}/clear`);
+    return data;
+  }
 }
 
 export default ConversationService;

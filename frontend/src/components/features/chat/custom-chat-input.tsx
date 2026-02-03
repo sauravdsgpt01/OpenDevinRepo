@@ -1,13 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useCallback } from "react";
 import { ConversationStatus } from "#/types/conversation-status";
 import { useChatInputLogic } from "#/hooks/chat/use-chat-input-logic";
 import { useFileHandling } from "#/hooks/chat/use-file-handling";
 import { useGripResize } from "#/hooks/chat/use-grip-resize";
 import { useChatInputEvents } from "#/hooks/chat/use-chat-input-events";
 import { useChatSubmission } from "#/hooks/chat/use-chat-submission";
+import { useSlashCommands } from "#/hooks/chat/use-slash-commands";
+import { useSlashCommandActions } from "#/hooks/chat/use-slash-command-actions";
 import { ChatInputGrip } from "./components/chat-input-grip";
 import { ChatInputContainer } from "./components/chat-input-container";
 import { HiddenFileInput } from "./components/hidden-file-input";
+import { SlashCommandMenu } from "./slash-command-menu";
 import { useConversationStore } from "#/stores/conversation-store";
 
 export interface CustomChatInputProps {
@@ -105,6 +108,80 @@ export function CustomChatInput({
       onBlur,
     );
 
+  // Slash command hooks
+  const {
+    isMenuOpen,
+    filteredCommands,
+    selectedIndex,
+    handleInputChange: handleSlashInputChange,
+    handleKeyDown: handleSlashKeyDown,
+    selectCommand,
+    resetState: resetSlashState,
+  } = useSlashCommands();
+
+  const { executeCommand } = useSlashCommandActions();
+
+  // Handle input changes to sync with slash command state
+  const handleInputWithSlash = useCallback(() => {
+    handleInput();
+    // Sync the input value with slash command hook
+    const text = chatInputRef.current?.innerText || "";
+    handleSlashInputChange(text);
+  }, [handleInput, handleSlashInputChange, chatInputRef]);
+
+  // Handle selecting a command from the menu
+  const handleSelectCommand = useCallback(
+    (command: (typeof filteredCommands)[number]) => {
+      selectCommand(command);
+      executeCommand(command);
+      resetSlashState();
+      // Clear the input
+      if (chatInputRef.current) {
+        chatInputRef.current.textContent = "";
+      }
+      smartResize();
+    },
+    [selectCommand, executeCommand, resetSlashState, chatInputRef, smartResize],
+  );
+
+  // Handle keyboard events with slash command support
+  const handleKeyDownWithSlash = useCallback(
+    (e: React.KeyboardEvent) => {
+      // First check if slash command menu should handle the event
+      const currentText = chatInputRef.current?.innerText || "";
+      if (currentText.startsWith("/")) {
+        const selectedCommand = handleSlashKeyDown(e);
+        if (selectedCommand) {
+          // Command was selected via Enter key
+          executeCommand(selectedCommand);
+          resetSlashState();
+          if (chatInputRef.current) {
+            chatInputRef.current.textContent = "";
+          }
+          smartResize();
+          return;
+        }
+        // If slash command hook handled the event (arrow keys, escape, tab)
+        if (e.defaultPrevented) {
+          return;
+        }
+      }
+
+      // Otherwise, use the normal key handler
+      handleKeyDown(e, isDisabled, handleSubmit);
+    },
+    [
+      chatInputRef,
+      handleSlashKeyDown,
+      executeCommand,
+      resetSlashState,
+      smartResize,
+      handleKeyDown,
+      isDisabled,
+      handleSubmit,
+    ],
+  );
+
   // Cleanup: reset suggestions visibility when component unmounts
   useEffect(
     () => () => {
@@ -131,6 +208,14 @@ export function CustomChatInput({
           handleGripTouchStart={handleGripTouchStart}
         />
 
+        {/* Slash command menu */}
+        <SlashCommandMenu
+          isOpen={isMenuOpen}
+          commands={filteredCommands}
+          selectedIndex={selectedIndex}
+          onSelectCommand={handleSelectCommand}
+        />
+
         <ChatInputContainer
           chatContainerRef={chatContainerRef}
           isDragOver={isDragOver}
@@ -144,9 +229,9 @@ export function CustomChatInput({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          onInput={handleInput}
+          onInput={handleInputWithSlash}
           onPaste={handlePaste}
-          onKeyDown={(e) => handleKeyDown(e, isDisabled, handleSubmit)}
+          onKeyDown={handleKeyDownWithSlash}
           onFocus={handleFocus}
           onBlur={handleBlur}
         />

@@ -32,6 +32,9 @@ from openhands.core.config.kubernetes_config import KubernetesConfig
 from openhands.core.config.llm_config import LLMConfig
 from openhands.core.config.mcp_config import MCPConfig
 from openhands.core.config.model_routing_config import ModelRoutingConfig
+from openhands.core.config.offload_config import (
+    offload_config_from_toml_section,
+)
 from openhands.core.config.openhands_config import OpenHandsConfig
 from openhands.core.config.sandbox_config import SandboxConfig
 from openhands.core.config.security_config import SecurityConfig
@@ -307,6 +310,20 @@ def load_from_toml(cfg: OpenHandsConfig, toml_file: str = 'config.toml') -> None
                 f'Cannot parse [kubernetes] config from toml, values have not been applied.\nError: {e}'
             )
 
+    # Process offload section if present
+    if 'offload' in toml_config:
+        try:
+            offload_mapping = offload_config_from_toml_section(toml_config['offload'])
+            if 'offload' in offload_mapping:
+                cfg.offload = offload_mapping['offload']
+                logger.openhands_logger.debug(
+                    f'Context offloading configuration loaded from config toml (enabled={cfg.offload.enabled})'
+                )
+        except (TypeError, KeyError, ValidationError) as e:
+            logger.openhands_logger.warning(
+                f'Cannot parse [offload] config from toml, values have not been applied.\nError: {e}'
+            )
+
     # Process condenser section if present
     if 'condenser' in toml_config:
         try:
@@ -367,6 +384,7 @@ def load_from_toml(cfg: OpenHandsConfig, toml_file: str = 'config.toml') -> None
         'mcp',
         'kubernetes',
         'model_routing',
+        'offload',
     }
     for key in toml_config:
         if key.lower() not in known_sections:

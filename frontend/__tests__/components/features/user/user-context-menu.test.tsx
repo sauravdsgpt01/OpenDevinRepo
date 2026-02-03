@@ -6,10 +6,15 @@ import { MemoryRouter } from "react-router";
 import { UserContextMenu } from "#/components/features/user/user-context-menu";
 import { organizationService } from "#/api/organization-service/organization-service.api";
 import { GetComponentPropTypes } from "#/utils/get-component-prop-types";
-import { INITIAL_MOCK_ORGS } from "#/mocks/org-handlers";
+import {
+  INITIAL_MOCK_ORGS,
+  MOCK_PERSONAL_ORG,
+  MOCK_TEAM_ORG_ACME,
+} from "#/mocks/org-handlers";
 import AuthService from "#/api/auth-service/auth-service.api";
 import { SAAS_NAV_ITEMS, OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import OptionService from "#/api/option-service/option-service.api";
+import { useSelectedOrganizationStore } from "#/stores/selected-organization-store";
 
 type UserContextMenuProps = GetComponentPropTypes<typeof UserContextMenu>;
 
@@ -50,7 +55,8 @@ vi.mock("react-router", async (importActual) => ({
 
 describe("UserContextMenu", () => {
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    navigateMock.mockClear();
   });
 
   it("should render the default context items for a user", () => {
@@ -275,9 +281,15 @@ describe("UserContextMenu", () => {
   });
 
   it("should navigate to /settings/org-members when Manage Organization Members is clicked", async () => {
+    // Mock a team org so org management buttons are visible (not personal org)
+    vi.spyOn(organizationService, "getOrganizations").mockResolvedValue([
+      MOCK_TEAM_ORG_ACME,
+    ]);
+
     renderUserContextMenu({ type: "admin", onClose: vi.fn });
 
-    const manageOrganizationMembersButton = screen.getByText(
+    // Wait for orgs to load so org management buttons are visible
+    const manageOrganizationMembersButton = await screen.findByText(
       "ORG$MANAGE_ORGANIZATION_MEMBERS",
     );
     await userEvent.click(manageOrganizationMembersButton);
@@ -288,9 +300,15 @@ describe("UserContextMenu", () => {
   });
 
   it("should navigate to /settings/org when Manage Account is clicked", async () => {
+    // Mock a team org so org management buttons are visible (not personal org)
+    vi.spyOn(organizationService, "getOrganizations").mockResolvedValue([
+      MOCK_TEAM_ORG_ACME,
+    ]);
+
     renderUserContextMenu({ type: "admin", onClose: vi.fn });
 
-    const manageAccountButton = screen.getByText("ORG$MANAGE_ACCOUNT");
+    // Wait for orgs to load so org management buttons are visible
+    const manageAccountButton = await screen.findByText("ORG$MANAGE_ACCOUNT");
     await userEvent.click(manageAccountButton);
 
     expect(navigateMock).toHaveBeenCalledExactlyOnceWith("/settings/org");
@@ -312,6 +330,11 @@ describe("UserContextMenu", () => {
   });
 
   it("should call the onClose handler after each action", async () => {
+    // Mock a team org so org management buttons are visible
+    vi.spyOn(organizationService, "getOrganizations").mockResolvedValue([
+      MOCK_TEAM_ORG_ACME,
+    ]);
+
     const onCloseMock = vi.fn();
     renderUserContextMenu({ type: "owner", onClose: onCloseMock });
 
@@ -319,7 +342,8 @@ describe("UserContextMenu", () => {
     await userEvent.click(logoutButton);
     expect(onCloseMock).toHaveBeenCalledTimes(1);
 
-    const manageOrganizationMembersButton = screen.getByText(
+    // Wait for orgs to load so org management buttons are visible
+    const manageOrganizationMembersButton = await screen.findByText(
       "ORG$MANAGE_ORGANIZATION_MEMBERS",
     );
     await userEvent.click(manageOrganizationMembersButton);
@@ -328,6 +352,69 @@ describe("UserContextMenu", () => {
     const manageAccountButton = screen.getByText("ORG$MANAGE_ACCOUNT");
     await userEvent.click(manageAccountButton);
     expect(onCloseMock).toHaveBeenCalledTimes(3);
+  });
+
+  describe("Personal org vs team org visibility", () => {
+    it("should not show Organization and Organization Members settings items when personal org is selected", async () => {
+      vi.spyOn(organizationService, "getOrganizations").mockResolvedValue([
+        MOCK_PERSONAL_ORG,
+      ]);
+      vi.spyOn(organizationService, "getMe").mockResolvedValue({
+        org_id: "1",
+        user_id: "99",
+        email: "me@test.com",
+        role: "admin",
+        llm_api_key: "**********",
+        max_iterations: 20,
+        llm_model: "gpt-4",
+        llm_api_key_for_byor: null,
+        llm_base_url: "https://api.openai.com",
+        status: "active",
+      });
+
+      // Pre-select the personal org in the Zustand store
+      useSelectedOrganizationStore.setState({ organizationId: "1" });
+
+      renderUserContextMenu({ type: "admin", onClose: vi.fn });
+
+      // Wait for org selector to load and org management buttons to disappear
+      // (they disappear when personal org is selected)
+      await waitFor(() => {
+        expect(
+          screen.queryByText("ORG$MANAGE_ORGANIZATION_MEMBERS"),
+        ).not.toBeInTheDocument();
+      });
+
+      expect(screen.queryByText("ORG$MANAGE_ACCOUNT")).not.toBeInTheDocument();
+    });
+
+    it("should not show Billing settings item when team org is selected", async () => {
+      vi.spyOn(organizationService, "getOrganizations").mockResolvedValue([
+        MOCK_TEAM_ORG_ACME,
+      ]);
+      vi.spyOn(organizationService, "getMe").mockResolvedValue({
+        org_id: "1",
+        user_id: "99",
+        email: "me@test.com",
+        role: "admin",
+        llm_api_key: "**********",
+        max_iterations: 20,
+        llm_model: "gpt-4",
+        llm_api_key_for_byor: null,
+        llm_base_url: "https://api.openai.com",
+        status: "active",
+      });
+
+      renderUserContextMenu({ type: "admin", onClose: vi.fn });
+
+      // Wait for org selector to load and billing to disappear
+      // (billing disappears when team org is selected)
+      await waitFor(() => {
+        expect(
+          screen.queryByText("SETTINGS$NAV_BILLING"),
+        ).not.toBeInTheDocument();
+      });
+    });
   });
 
   it("should render the invite user modal when Invite Organization Member is clicked", async () => {
@@ -349,55 +436,33 @@ describe("UserContextMenu", () => {
   });
 
   test("the user can change orgs", async () => {
+    const user = userEvent.setup();
     const onCloseMock = vi.fn();
     renderUserContextMenu({ type: "member", onClose: onCloseMock });
 
     const orgSelector = screen.getByTestId("org-selector");
     expect(orgSelector).toBeInTheDocument();
 
-    // Simulate changing the organization
-    await userEvent.click(orgSelector);
-    const orgOption = screen.getByText(INITIAL_MOCK_ORGS[1].name);
-    await userEvent.click(orgOption);
+    // Wait for organizations to load (indicated by org name appearing in the dropdown)
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).toHaveValue(
+        INITIAL_MOCK_ORGS[0].name,
+      );
+    });
+
+    // Open the dropdown by clicking the trigger
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    // Select a different organization
+    const orgOption = screen.getByRole("option", {
+      name: INITIAL_MOCK_ORGS[1].name,
+    });
+    await user.click(orgOption);
 
     expect(onCloseMock).not.toHaveBeenCalled();
 
     // Verify that the dropdown shows the selected organization
-    // The dropdown should now display the selected org name
-    expect(orgSelector).toHaveValue(INITIAL_MOCK_ORGS[1].name);
-  });
-
-  it("should have Personal Account as the default selected option with null value", async () => {
-    const onCloseMock = vi.fn();
-    renderUserContextMenu({ type: "member", onClose: onCloseMock });
-
-    const orgSelector = screen.getByTestId("org-selector");
-
-    // Should default to "Personal Account" when orgId is null
-    expect(orgSelector).toHaveValue("Personal Account");
-
-    // Click to open dropdown
-    await userEvent.click(orgSelector);
-
-    // Should have "Personal Account" as an option
-    const personalAccountOption = screen.getByText("Personal Account");
-    expect(personalAccountOption).toBeInTheDocument();
-
-    // Select an organization
-    const orgOption = screen.getByText(INITIAL_MOCK_ORGS[1].name);
-    await userEvent.click(orgOption);
-
-    // Should now show the selected organization
-    expect(orgSelector).toHaveValue(INITIAL_MOCK_ORGS[1].name);
-
-    // Click to open dropdown again
-    await userEvent.click(orgSelector);
-
-    // Click on Personal Account to go back
-    const personalAccountOptionAgain = screen.getByText("Personal Account");
-    await userEvent.click(personalAccountOptionAgain);
-
-    // Should show "Personal Account" after going back
-    expect(orgSelector).toHaveValue("Personal Account");
+    expect(screen.getByRole("combobox")).toHaveValue(INITIAL_MOCK_ORGS[1].name);
   });
 });

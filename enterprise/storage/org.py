@@ -47,6 +47,12 @@ class Org(Base):  # type: ignore
     conversation_expiration = Column(Integer, nullable=True)
     condenser_max_size = Column(Integer, nullable=True)
 
+    # Inactive user data retention policy
+    # Number of days of inactivity before marking user for retention (default: 90)
+    inactive_user_retention_days = Column(Integer, nullable=True)
+    # Number of days in 'retention_pending' before actual deletion (default: 30)
+    inactive_user_grace_period_days = Column(Integer, nullable=True)
+
     # Relationships
     org_members = relationship('OrgMember', back_populates='org')
     current_users = relationship('User', back_populates='current_org')

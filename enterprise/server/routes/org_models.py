@@ -91,6 +91,9 @@ class OrgResponse(BaseModel):
     enable_solvability_analysis: bool | None = None
     v1_enabled: bool | None = None
     credits: float | None = None
+    # Inactive user data retention settings
+    inactive_user_retention_days: int | None = None
+    inactive_user_grace_period_days: int | None = None
 
     @classmethod
     def from_org(cls, org: Org, credits: float | None = None) -> 'OrgResponse':
@@ -134,6 +137,8 @@ class OrgResponse(BaseModel):
             enable_solvability_analysis=org.enable_solvability_analysis,
             v1_enabled=org.v1_enabled,
             credits=credits,
+            inactive_user_retention_days=org.inactive_user_retention_days,
+            inactive_user_grace_period_days=org.inactive_user_grace_period_days,
         )
 
 
@@ -173,3 +178,9 @@ class OrgUpdate(BaseModel):
     confirmation_mode: bool | None = None
     enable_default_condenser: bool | None = None
     condenser_max_size: int | None = Field(default=None, ge=20)
+
+    # Inactive user data retention settings (require admin/owner role)
+    # Number of days of inactivity before marking user for deletion (default: 90)
+    inactive_user_retention_days: int | None = Field(default=None, ge=1)
+    # Number of days in pending status before actual deletion (default: 30)
+    inactive_user_grace_period_days: int | None = Field(default=None, ge=1)

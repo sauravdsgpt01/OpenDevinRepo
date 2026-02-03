@@ -484,6 +484,9 @@ class OrgService:
             'confirmation_mode',
             'enable_default_condenser',
             'condenser_max_size',
+            # Data retention settings also require admin/owner role
+            'inactive_user_retention_days',
+            'inactive_user_grace_period_days',
         }
 
     @staticmethod

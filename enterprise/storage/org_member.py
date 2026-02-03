@@ -3,7 +3,7 @@ SQLAlchemy model for Organization-Member relationship.
 """
 
 from pydantic import SecretStr
-from sqlalchemy import UUID, Column, ForeignKey, Integer, String
+from sqlalchemy import UUID, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from storage.base import Base
 from storage.encrypt_utils import decrypt_value, encrypt_value
@@ -23,6 +23,12 @@ class OrgMember(Base):  # type: ignore
     _llm_api_key_for_byor = Column(String, nullable=True)
     llm_base_url = Column(String, nullable=True)
     status = Column(String, nullable=True)
+
+    # Data retention status tracking
+    # Values: None/'active', 'retention_pending', 'retention_deleted'
+    retention_status = Column(String, nullable=True)
+    # Timestamp when user was marked for retention (start of grace period)
+    retention_pending_since = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     org = relationship('Org', back_populates='org_members')

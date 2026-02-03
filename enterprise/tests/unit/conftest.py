@@ -14,8 +14,10 @@ from storage.conversation_work import ConversationWork
 from storage.device_code import DeviceCode  # noqa: F401
 from storage.feedback import Feedback
 from storage.github_app_installation import GithubAppInstallation
+from storage.maintenance_task import MaintenanceTask  # noqa: F401
 from storage.org import Org
 from storage.org_member import OrgMember
+from storage.retention_audit_log import RetentionAuditLog  # noqa: F401
 from storage.role import Role
 from storage.stored_conversation_metadata import StoredConversationMetadata
 from storage.stored_conversation_metadata_saas import (

@@ -1,10 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { Spinner } from "@heroui/react";
 import { useMicroagentManagementStore } from "#/stores/microagent-management-store";
 import { useRepositoryMicroagentContent } from "#/hooks/query/use-repository-microagent-content";
 import { I18nKey } from "#/i18n/declaration";
 import { extractRepositoryInfo } from "#/utils/utils";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
+import { Spinner } from "#/ui/spinner";
 
 export function MicroagentManagementViewMicroagentContent() {
   const { t } = useTranslation();
@@ -34,7 +34,7 @@ export function MicroagentManagementViewMicroagentContent() {
     <div className="w-full h-full p-6 bg-[#ffffff1a] rounded-2xl text-white text-sm">
       {isLoading && (
         <div className="flex items-center justify-center w-full h-full">
-          <Spinner size="lg" data-testid="loading-microagent-content-spinner" />
+          <Spinner size="lg" testId="loading-microagent-content-spinner" />
         </div>
       )}
       {error && (

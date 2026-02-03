@@ -15950,5 +15950,21 @@
     "tr": "Bağlantı panoya kopyalandı",
     "de": "Link in die Zwischenablage kopiert",
     "uk": "Посилання скопійовано в буфер обміну"
+  },
+  "COMMON$DELETING": {
+    "en": "Deleting",
+    "ja": "削除中",
+    "zh-CN": "正在删除",
+    "zh-TW": "正在刪除",
+    "ko-KR": "삭제 중",
+    "no": "Sletter",
+    "it": "Eliminazione in corso",
+    "pt": "Excluindo",
+    "es": "Eliminando",
+    "ar": "جارٍ الحذف",
+    "fr": "Suppression en cours",
+    "tr": "Siliniyor",
+    "de": "Wird gelöscht",
+    "uk": "Видалення"
   }
 }

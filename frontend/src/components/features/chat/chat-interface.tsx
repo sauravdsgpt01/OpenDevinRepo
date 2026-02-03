@@ -289,6 +289,8 @@ export function ChatInterface() {
     curAgentState === AgentState.LOADING || curAgentState === AgentState.INIT;
   const isStopStatus = curAgentState === AgentState.STOPPED;
   const isPausing = curAgentState === AgentState.PAUSED;
+  const isDeleting = curAgentState === AgentState.DELETE;
+
   const serverStatusColor = getStatusColor({
     isPausing,
     isTask,
@@ -296,6 +298,7 @@ export function ChatInterface() {
     isStartingStatus,
     isStopStatus,
     curAgentState,
+    isDeleting,
   });
   const serverStatusText = getStatusText({
     isPausing,
@@ -306,6 +309,7 @@ export function ChatInterface() {
     isStopStatus,
     curAgentState,
     errorMessage,
+    isDeleting,
     t,
   });
 

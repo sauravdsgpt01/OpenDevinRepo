@@ -8,6 +8,8 @@
 # This module belongs to the old V0 web server. The V1 application server lives under openhands/app_server/.
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -62,3 +64,20 @@ class GETCustomSecrets(BaseModel):
     """Custom secrets names"""
 
     custom_secrets: list[CustomSecretWithoutValueModel] | None = None
+
+
+class CredentialMappingModel(BaseModel):
+    """Credential mapping model for API requests"""
+
+    resource_pattern: str
+    credential_name: str
+    auth_method: str
+    auth_header: str | None = None
+    resource_type: str | None = None
+    description: str | None = None
+
+
+class GETCredentialMappings(BaseModel):
+    """Credential mappings list"""
+
+    credential_mappings: list[dict[str, Any]]

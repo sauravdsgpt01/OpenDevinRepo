@@ -15950,5 +15950,53 @@
     "tr": "Bağlantı panoya kopyalandı",
     "de": "Link in die Zwischenablage kopiert",
     "uk": "Посилання скопійовано в буфер обміну"
+  },
+  "CONVERSATION$CHANGE_REPOSITORY": {
+    "en": "Change Repository",
+    "ja": "リポジトリを変更",
+    "zh-CN": "更改仓库",
+    "zh-TW": "更改倉庫",
+    "ko-KR": "저장소 변경",
+    "no": "Endre Repository",
+    "it": "Cambia Repository",
+    "pt": "Alterar Repositório",
+    "es": "Cambiar Repositorio",
+    "ar": "تغيير المستودع",
+    "fr": "Changer de dépôt",
+    "tr": "Depoyu Değiştir",
+    "de": "Repository ändern",
+    "uk": "Змінити репозиторій"
+  },
+  "CONVERSATION$REPOSITORY_UPDATED": {
+    "en": "Repository updated successfully",
+    "ja": "リポジトリが正常に更新されました",
+    "zh-CN": "仓库更新成功",
+    "zh-TW": "倉庫更新成功",
+    "ko-KR": "저장소가 성공적으로 업데이트되었습니다",
+    "no": "Repository oppdatert",
+    "it": "Repository aggiornato con successo",
+    "pt": "Repositório atualizado com sucesso",
+    "es": "Repositorio actualizado correctamente",
+    "ar": "تم تحديث المستودع بنجاح",
+    "fr": "Dépôt mis à jour avec succès",
+    "tr": "Depo başarıyla güncellendi",
+    "de": "Repository erfolgreich aktualisiert",
+    "uk": "Репозиторій успішно оновлено"
+  },
+  "CONVERSATION$FAILED_TO_UPDATE_REPOSITORY": {
+    "en": "Failed to update repository",
+    "ja": "リポジトリの更新に失敗しました",
+    "zh-CN": "更新仓库失败",
+    "zh-TW": "更新倉庫失敗",
+    "ko-KR": "저장소 업데이트 실패",
+    "no": "Kunne ikke oppdatere repository",
+    "it": "Impossibile aggiornare il repository",
+    "pt": "Falha ao atualizar repositório",
+    "es": "Error al actualizar el repositorio",
+    "ar": "فشل تحديث المستودع",
+    "fr": "Échec de la mise à jour du dépôt",
+    "tr": "Depo güncellenemedi",
+    "de": "Repository konnte nicht aktualisiert werden",
+    "uk": "Не вдалося оновити репозиторій"
   }
 }

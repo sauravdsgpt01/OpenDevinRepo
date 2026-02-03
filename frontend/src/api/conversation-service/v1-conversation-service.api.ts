@@ -317,6 +317,66 @@ class V1ConversationService {
   }
 
   /**
+   * Update a V1 conversation's repository
+   * @param conversationId The conversation ID
+   * @param selectedRepository The repository in format "owner/repo"
+   * @param selectedBranch The branch to use (optional)
+   * @param gitProvider The git provider (github, gitlab, etc.)
+   * @returns Updated conversation info
+   */
+  static async updateConversationRepository(
+    conversationId: string,
+    selectedRepository: string,
+    selectedBranch?: string,
+    gitProvider?: Provider,
+  ): Promise<V1AppConversation> {
+    const payload: {
+      selected_repository: string;
+      selected_branch?: string;
+      git_provider?: Provider;
+    } = {
+      selected_repository: selectedRepository,
+    };
+
+    if (selectedBranch) {
+      payload.selected_branch = selectedBranch;
+    }
+
+    if (gitProvider) {
+      payload.git_provider = gitProvider;
+    }
+
+    const { data } = await openHands.patch<V1AppConversation>(
+      `/api/v1/app-conversations/${conversationId}`,
+      payload,
+    );
+    return data;
+  }
+
+  /**
+   * Update a V1 conversation with partial updates
+   * @param conversationId The conversation ID
+   * @param updates Partial update object with any combination of title, public, repository fields
+   * @returns Updated conversation info
+   */
+  static async updateConversation(
+    conversationId: string,
+    updates: {
+      title?: string;
+      public?: boolean;
+      selected_repository?: string;
+      selected_branch?: string;
+      git_provider?: Provider;
+    },
+  ): Promise<V1AppConversation> {
+    const { data } = await openHands.patch<V1AppConversation>(
+      `/api/v1/app-conversations/${conversationId}`,
+      updates,
+    );
+    return data;
+  }
+
+  /**
    * Read a file from a specific conversation's sandbox workspace
    * @param conversationId The conversation ID
    * @param filePath Path to the file to read within the sandbox workspace (defaults to /workspace/project/PLAN.md)

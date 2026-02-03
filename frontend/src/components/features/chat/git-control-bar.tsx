@@ -1,9 +1,12 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
+import { useParams } from "react-router";
 import { GitControlBarRepoButton } from "./git-control-bar-repo-button";
 import { GitControlBarBranchButton } from "./git-control-bar-branch-button";
 import { GitControlBarPullButton } from "./git-control-bar-pull-button";
 import { GitControlBarPushButton } from "./git-control-bar-push-button";
 import { GitControlBarPrButton } from "./git-control-bar-pr-button";
+import { ConnectRepositoryModal } from "#/components/shared/modals/connect-repository-modal";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
@@ -17,6 +20,8 @@ interface GitControlBarProps {
 
 export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const { t } = useTranslation();
+  const { conversationId } = useParams();
+  const [showConnectModal, setShowConnectModal] = React.useState(false);
 
   const { data: conversation } = useActiveConversation();
   const { repositoryInfo } = useTaskPolling();
@@ -31,24 +36,24 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const selectedBranch =
     conversation?.selected_branch || repositoryInfo?.selectedBranch;
 
-  const hasRepository = !!selectedRepository;
+  const hasRepository = !!(selectedRepository && gitProvider);
 
   // Enable buttons only when conversation exists and WS is connected
   const isConversationReady = !!conversation && webSocketStatus === "CONNECTED";
 
+  const handleConnectRepository = () => {
+    setShowConnectModal(true);
+  };
+
   return (
     <div className="flex flex-row items-center">
       <div className="flex flex-row gap-2.5 items-center overflow-x-auto flex-wrap md:flex-nowrap relative scrollbar-hide">
-        <GitControlBarTooltipWrapper
-          tooltipMessage={t(I18nKey.COMMON$GIT_TOOLS_DISABLED_CONTENT)}
-          testId="git-control-bar-repo-button-tooltip"
-          shouldShowTooltip={!hasRepository}
-        >
-          <GitControlBarRepoButton
-            selectedRepository={selectedRepository}
-            gitProvider={gitProvider}
-          />
-        </GitControlBarTooltipWrapper>
+        <GitControlBarRepoButton
+          selectedRepository={selectedRepository}
+          gitProvider={gitProvider}
+          onConnectRepository={handleConnectRepository}
+          onChangeRepository={handleConnectRepository}
+        />
 
         <GitControlBarTooltipWrapper
           tooltipMessage={t(I18nKey.COMMON$GIT_TOOLS_DISABLED_CONTENT)}
@@ -103,6 +108,13 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
           </>
         ) : null}
       </div>
+
+      {showConnectModal && conversationId && (
+        <ConnectRepositoryModal
+          conversationId={conversationId}
+          onClose={() => setShowConnectModal(false)}
+        />
+      )}
     </div>
   );
 }

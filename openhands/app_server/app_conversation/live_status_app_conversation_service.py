@@ -1224,6 +1224,8 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
     ) -> AppConversation | None:
         """Update an app conversation and return it. Return None if the conversation
         did not exist.
+
+        Only updates fields that are explicitly provided (not None) in the request.
         """
         info = await self.app_conversation_info_service.get_app_conversation_info(
             conversation_id
@@ -1232,7 +1234,9 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             return None
         for field_name in AppConversationUpdateRequest.model_fields:
             value = getattr(request, field_name)
-            setattr(info, field_name, value)
+            # Only update fields that are explicitly provided (not None)
+            if value is not None:
+                setattr(info, field_name, value)
         info = await self.app_conversation_info_service.save_app_conversation_info(info)
         conversations = await self._build_app_conversations([info])
         return conversations[0]

@@ -53,6 +53,8 @@ from openhands.runtime.plugins import (
 )
 from openhands.utils.prompt import PromptManager
 
+import weave
+
 
 class CodeActAgent(Agent):
     VERSION = '2.2'
@@ -83,6 +85,7 @@ class CodeActAgent(Agent):
         JupyterRequirement(),
     ]
 
+    @weave.op(name='codeact_agent_init')
     def __init__(self, config: AgentConfig, llm_registry: LLMRegistry) -> None:
         """Initializes a new instance of the CodeActAgent class.
 
@@ -113,6 +116,7 @@ class CodeActAgent(Agent):
 
         return self._prompt_manager
 
+    @weave.op(name='codeact_agent_get_tools')
     def _get_tools(self) -> list['ChatCompletionToolParam']:
         # For these models, we use short tool descriptions ( < 1024 tokens)
         # to avoid hitting the OpenAI token limit for tool descriptions.
@@ -166,6 +170,7 @@ class CodeActAgent(Agent):
         # Only clear pending actions, not LLM metrics
         self.pending_actions.clear()
 
+    @weave.op(name='codeact_agent_step')
     def step(self, state: State) -> 'Action':
         """Performs one step using the CodeAct Agent.
 

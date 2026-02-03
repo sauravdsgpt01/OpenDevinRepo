@@ -29,6 +29,7 @@ from openhands.llm.llm_registry import LLMRegistry
 from openhands.runtime.plugins import (
     PluginRequirement,
 )
+import weave
 
 USE_NAV = (
     os.environ.get('USE_NAV', 'true') == 'true'
@@ -107,6 +108,7 @@ class BrowsingAgent(Agent):
     sandbox_plugins: list[PluginRequirement] = []
     response_parser = BrowsingResponseParser()
 
+    @weave.op(name='browsing_agent_init')
     def __init__(
         self,
         config: AgentConfig,
@@ -137,6 +139,7 @@ class BrowsingAgent(Agent):
         # Reset agent-specific counters but not LLM metrics
         self.error_accumulator = 0
 
+    @weave.op(name='browsing_agent_step')
     def step(self, state: State) -> Action:
         """Performs one step using the Browsing Agent.
         This includes gathering information on previous steps and prompting the model to make a browsing command to execute.

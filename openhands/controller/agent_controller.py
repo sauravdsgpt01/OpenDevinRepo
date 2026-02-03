@@ -65,6 +65,7 @@ from openhands.events.action import (
     AgentRejectAction,
     BrowseInteractiveAction,
     ChangeAgentStateAction,
+    ClearHistoryAction,
     CmdRunAction,
     FileEditAction,
     FileReadAction,
@@ -432,6 +433,8 @@ class AgentController:
                 return True
             if isinstance(event, CondensationRequestAction):
                 return True
+            if isinstance(event, ClearHistoryAction):
+                return True
             return False
         if isinstance(event, Observation):
             if (
@@ -535,6 +538,8 @@ class AgentController:
             await self.set_agent_state_to(AgentState.REJECTED)
         elif isinstance(action, LoopRecoveryAction):
             await self._handle_loop_recovery_action(action)
+        elif isinstance(action, ClearHistoryAction):
+            await self._handle_clear_history_action(action)
 
     async def _handle_observation(self, observation: Observation) -> None:
         """Handles observation from the event stream.
@@ -625,6 +630,35 @@ class AgentController:
                 # Option 3: Stop agent completely
                 await self.set_agent_state_to(AgentState.STOPPED)
             return
+
+    async def _handle_clear_history_action(self, action: ClearHistoryAction) -> None:
+        """Handles the /clear command by clearing conversation history while preserving runtime.
+
+        This clears all events from the state history but keeps the runtime (container,
+        filesystem, packages, environment variables) intact.
+
+        Args:
+            action (ClearHistoryAction): The clear history action to handle.
+        """
+        # Clear the state history
+        self.state.history = []
+
+        # Reset the end_id
+        self.state.end_id = -1
+
+        # Clear any cached messages
+        self._cached_first_user_message = None
+
+        # Add a confirmation message to the event stream
+        self.event_stream.add_event(
+            MessageAction(
+                content='Conversation history cleared. Runtime state preserved. How can I help you?'
+            ),
+            EventSource.AGENT,
+        )
+
+        # Set state to await user input for the next task
+        await self.set_agent_state_to(AgentState.AWAITING_USER_INPUT)
 
     def _reset(self) -> None:
         """Resets the agent controller."""

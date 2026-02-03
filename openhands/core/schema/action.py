@@ -107,3 +107,6 @@ class ActionType(str, Enum):
 
     LOOP_RECOVERY = 'loop_recovery'
     """Recover dead loop."""
+
+    CLEAR_HISTORY = 'clear_history'
+    """Clears conversation history while preserving runtime state."""

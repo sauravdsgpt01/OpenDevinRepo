@@ -40,7 +40,7 @@ from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
 from openhands.core.logger import openhands_logger as logger
 from openhands.core.message import Message
-from openhands.events.action import AgentFinishAction, MessageAction
+from openhands.events.action import AgentFinishAction, ClearHistoryAction, MessageAction
 from openhands.events.event import Event
 from openhands.llm.llm_utils import check_tools
 from openhands.memory.condenser import Condenser
@@ -196,6 +196,10 @@ class CodeActAgent(Agent):
         latest_user_message = state.get_last_user_message()
         if latest_user_message and latest_user_message.content.strip() == '/exit':
             return AgentFinishAction()
+
+        # Handle /clear command - clears conversation history while preserving runtime
+        if latest_user_message and latest_user_message.content.strip() == '/clear':
+            return ClearHistoryAction()
 
         # Condense the events from the state. If we get a view we'll pass those
         # to the conversation manager for processing, but if we get a condensation

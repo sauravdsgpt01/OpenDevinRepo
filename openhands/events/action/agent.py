@@ -240,3 +240,26 @@ class LoopRecoveryAction(Action):
 
     option: int = 1
     action: str = ActionType.LOOP_RECOVERY
+
+
+@dataclass
+class ClearHistoryAction(Action):
+    """An action that clears conversation history while preserving runtime state.
+
+    This action is triggered by the /clear command. It removes all conversation
+    history from the agent's context but keeps the runtime (container, filesystem,
+    packages, environment variables) intact.
+
+    Attributes:
+        thought (str): Optional explanation of why history is being cleared.
+        action (str): The action type, namely ActionType.CLEAR_HISTORY.
+    """
+
+    thought: str = ''
+    action: str = ActionType.CLEAR_HISTORY
+
+    @property
+    def message(self) -> str:
+        return (
+            'Conversation history cleared. Runtime state preserved. How can I help you?'
+        )

@@ -41,6 +41,7 @@ interface EventMessageProps {
   isInLast10Actions: boolean;
   /** Set of event IDs that should render PlanPreview (one per user message phase) */
   planPreviewEventIds?: Set<string>;
+  isLastTaskTrackingObservation?: boolean;
 }
 
 /**
@@ -153,6 +154,7 @@ export function EventMessage({
   actions,
   isInLast10Actions,
   planPreviewEventIds,
+  isLastTaskTrackingObservation,
 }: EventMessageProps) {
   const { data: config } = useConfig();
   const { planContent } = useConversationStore();
@@ -262,6 +264,7 @@ export function EventMessage({
           event={event}
           isLastMessage={isLastMessage}
           isFromPlanningAgent={isFromPlanningAgent}
+          isLastTaskTrackingObservation={isLastTaskTrackingObservation}
         />
       </>
     );

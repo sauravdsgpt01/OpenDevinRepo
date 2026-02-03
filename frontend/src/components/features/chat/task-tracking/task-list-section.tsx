@@ -11,9 +11,10 @@ interface TaskListSectionProps {
     status: "todo" | "in_progress" | "done";
     notes?: string;
   }>;
+  isLatest?: boolean;
 }
 
-export function TaskListSection({ taskList }: TaskListSectionProps) {
+export function TaskListSection({ taskList, isLatest }: TaskListSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -29,7 +30,7 @@ export function TaskListSection({ taskList }: TaskListSectionProps) {
       {/* Task Items */}
       <div>
         {taskList.map((task) => (
-          <TaskItem key={task.id} task={task} />
+          <TaskItem key={task.id} task={task} isLatest={isLatest} />
         ))}
       </div>
     </div>

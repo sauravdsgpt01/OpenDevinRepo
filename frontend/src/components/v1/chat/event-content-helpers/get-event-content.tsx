@@ -174,7 +174,10 @@ const getObservationEventTitle = (event: OpenHandsEvent): React.ReactNode => {
   return observationType;
 };
 
-export const getEventContent = (event: OpenHandsEvent | SkillReadyEvent) => {
+export const getEventContent = (
+  event: OpenHandsEvent | SkillReadyEvent,
+  options?: { isLastTaskTrackingObservation?: boolean },
+) => {
   let title: React.ReactNode = "";
   let details: string | React.ReactNode = "";
 
@@ -199,6 +202,7 @@ export const getEventContent = (event: OpenHandsEvent | SkillReadyEvent) => {
       details = (
         <TaskTrackingObservationContent
           event={event as ObservationEvent<TaskTrackerObservation>}
+          isLatest={options?.isLastTaskTrackingObservation}
         />
       );
     } else {

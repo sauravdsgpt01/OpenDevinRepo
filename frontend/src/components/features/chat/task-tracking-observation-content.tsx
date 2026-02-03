@@ -3,10 +3,12 @@ import { TaskListSection } from "./task-tracking/task-list-section";
 
 interface TaskTrackingObservationContentProps {
   event: TaskTrackingObservation;
+  isLatest?: boolean;
 }
 
 export function TaskTrackingObservationContent({
   event,
+  isLatest,
 }: TaskTrackingObservationContentProps) {
   const { command, task_list: taskList } = event.extras;
   const shouldShowTaskList = command === "plan" && taskList.length > 0;
@@ -14,7 +16,9 @@ export function TaskTrackingObservationContent({
   return (
     <div className="flex flex-col gap-4">
       {/* Task List section - only show for 'plan' command */}
-      {shouldShowTaskList && <TaskListSection taskList={taskList} />}
+      {shouldShowTaskList && (
+        <TaskListSection taskList={taskList} isLatest={isLatest} />
+      )}
     </div>
   );
 }

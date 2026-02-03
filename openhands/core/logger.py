@@ -537,6 +537,37 @@ class OpenHandsLoggerAdapter(logging.LoggerAdapter):
         return msg, kwargs
 
 
+class UvicornAccessJsonFormatter(JsonFormatter):
+    """JSON formatter for uvicorn access logs that extracts HTTP fields.
+
+    Uvicorn access logs pass structured data in record.args as a tuple:
+    (client_addr, method, full_path, http_version, status_code)
+
+    This formatter extracts these into separate JSON fields for better
+    querying and analysis in log aggregation systems like Datadog.
+    """
+
+    def add_fields(
+        self,
+        log_record: dict[str, Any],
+        record: logging.LogRecord,
+        message_dict: dict[str, Any],
+    ) -> None:
+        super().add_fields(log_record, record, message_dict)
+
+        # Extract HTTP fields from uvicorn access log args
+        # record.args is a tuple for uvicorn access logs:
+        # (client_addr, method, full_path, http_version, status_code)
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 5:
+            client_addr, method, full_path, http_version, status_code = args[:5]
+            log_record['http.client_ip'] = client_addr
+            log_record['http.method'] = method
+            log_record['http.url'] = full_path
+            log_record['http.version'] = http_version
+            log_record['http.status_code'] = int(status_code)  # type: ignore[call-overload]
+
+
 def get_uvicorn_json_log_config() -> dict:
     """Returns a uvicorn log config dict for JSON structured logging.
 
@@ -568,9 +599,10 @@ def get_uvicorn_json_log_config() -> dict:
                 '()': 'pythonjsonlogger.json.JsonFormatter',
                 'fmt': '%(message)s %(levelname)s %(name)s %(asctime)s %(exc_info)s',
             },
+            # Custom formatter that extracts HTTP fields from uvicorn access logs
             'json_access': {
-                '()': 'pythonjsonlogger.json.JsonFormatter',
-                'fmt': '%(message)s %(levelname)s %(name)s %(asctime)s %(client_addr)s %(request_line)s %(status_code)s',
+                '()': 'openhands.core.logger.UvicornAccessJsonFormatter',
+                'fmt': '%(message)s %(levelname)s %(name)s %(asctime)s',
             },
         },
         'handlers': {

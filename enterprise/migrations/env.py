@@ -1,7 +1,12 @@
 import os
 from logging.config import fileConfig
 
+# isort: off
+# Import enterprise.server.logger BEFORE alembic to configure JSON logging
+import enterprise.server.logger
 from alembic import context
+
+# isort: on
 from google.cloud.sql.connector import Connector
 from sqlalchemy import create_engine
 from storage.base import Base
@@ -62,7 +67,9 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
+# Note: We skip fileConfig when LOG_JSON is enabled since enterprise.server.logger
+# has already configured JSON logging.
+if config.config_file_name is not None and not enterprise.server.logger.LOG_JSON:
     fileConfig(config.config_file_name)
 
 

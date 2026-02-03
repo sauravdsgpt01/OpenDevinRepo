@@ -2,7 +2,12 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+# isort: off
+# Import openhands.core.logger BEFORE alembic to suppress plugin setup INFO logs
+import openhands.core.logger
 from alembic import context
+
+# isort: on
 
 # Add the project root to the Python path so we can import OpenHands modules
 # From alembic/env.py, we need to go up 5 levels to reach the OpenHands project root
@@ -33,15 +38,16 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
+# Note: We skip fileConfig when LOG_JSON is enabled since openhands.core.logger
+# has already configured logging.
+if config.config_file_name is not None and not openhands.core.logger.LOG_JSON:
+    import logging
     import os
 
     if os.path.exists(config.config_file_name):
         fileConfig(config.config_file_name)
     else:
         # Use basic logging configuration if config file doesn't exist
-        import logging
-
         logging.basicConfig(level=logging.INFO)
 
 # add your model's MetaData object here

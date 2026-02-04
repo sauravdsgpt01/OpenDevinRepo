@@ -1,0 +1,241 @@
+# Workflow that detects feature flag usage in PRs and adds appropriate labels
+name: Feature Flag Detection
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# If triggered by a PR, it will be in the same group. However, each commit on main will be in its own unique group
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.head_ref && github.ref) || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  detect-feature-flags:
+    name: Detect Feature Flags
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **/*.py
+            **/*.ts
+            **/*.tsx
+            **/*.js
+            **/*.jsx
+
+      - name: Detect feature flags in changes
+        id: detect-flags
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          echo "Checking for feature flag patterns in changed files..."
+
+          # Initialize variables
+          FEATURE_FLAG_FOUND=false
+          DETECTED_FLAGS=""
+
+          # Define feature flag patterns to search for
+          # Python patterns
+          PY_PATTERNS=(
+            'feature_enabled\s*\('
+            'get_feature_flag\s*\('
+            'feature_flag'
+            'FeatureFlag'
+            'feature_flags'
+            'WebClientFeatureFlags'
+            '@feature_flag'
+            'is_feature_enabled'
+            'check_feature'
+            'FEATURE_'
+          )
+
+          # TypeScript/JavaScript patterns
+          JS_PATTERNS=(
+            'loadFeatureFlag\s*\('
+            'useFeatureFlag'
+            'featureFlags'
+            'FEATURE_'
+            'isFeatureEnabled'
+            'feature-flags'
+            'posthog\.isFeatureEnabled'
+            'posthog\.getFeatureFlag'
+          )
+
+          # Check each changed file
+          for file in $CHANGED_FILES; do
+            if [[ ! -f "$file" ]]; then
+              continue
+            fi
+
+            echo "Checking file: $file"
+
+            # Determine file type and patterns to use
+            if [[ "$file" == *.py ]]; then
+              PATTERNS=("${PY_PATTERNS[@]}")
+            elif [[ "$file" == *.ts || "$file" == *.tsx || "$file" == *.js || "$file" == *.jsx ]]; then
+              PATTERNS=("${JS_PATTERNS[@]}")
+            else
+              continue
+            fi
+
+            # Check for each pattern
+            for pattern in "${PATTERNS[@]}"; do
+              # Get the diff for this file and check for additions containing the pattern
+              if git diff origin/${{ github.base_ref }}...HEAD -- "$file" 2>/dev/null | grep -E "^\+" | grep -qE "$pattern"; then
+                FEATURE_FLAG_FOUND=true
+                # Extract the specific flag names/usages
+                MATCHES=$(git diff origin/${{ github.base_ref }}...HEAD -- "$file" 2>/dev/null | grep -E "^\+" | grep -oE "$pattern[^)]*" | head -5)
+                if [[ -n "$MATCHES" ]]; then
+                  DETECTED_FLAGS="${DETECTED_FLAGS}${file}: ${MATCHES}\n"
+                fi
+              fi
+            done
+          done
+
+          echo "feature_flag_found=$FEATURE_FLAG_FOUND" >> $GITHUB_OUTPUT
+          echo "detected_flags<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$DETECTED_FLAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [[ "$FEATURE_FLAG_FOUND" == "true" ]]; then
+            echo "✅ Feature flags detected in this PR"
+          else
+            echo "ℹ️ No feature flags detected in this PR"
+          fi
+
+      - name: Add feature flag label
+        if: steps.detect-flags.outputs.feature_flag_found == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labelName = 'feature-flag';
+            const labelColor = '7B68EE';  // Medium purple color
+            const labelDescription = 'This PR contains feature flag changes';
+
+            // Check if label exists, create if not
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: labelName
+              });
+            } catch (error) {
+              if (error.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: labelName,
+                  color: labelColor,
+                  description: labelDescription
+                });
+              }
+            }
+
+            // Add label to PR
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [labelName]
+            });
+
+            console.log('✅ Added feature-flag label to PR');
+
+      - name: Remove feature flag label if no flags detected
+        if: steps.detect-flags.outputs.feature_flag_found == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labelName = 'feature-flag';
+
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: labelName
+              });
+              console.log('ℹ️ Removed feature-flag label from PR');
+            } catch (error) {
+              // Label might not exist on the PR, which is fine
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+      - name: Add PR comment with feature flag details
+        if: steps.detect-flags.outputs.feature_flag_found == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const detectedFlags = `${{ steps.detect-flags.outputs.detected_flags }}`;
+            const commentMarker = '<!-- feature-flag-detection-comment -->';
+
+            const body = `${commentMarker}
+            ## 🚩 Feature Flag Detection
+
+            This PR contains changes related to feature flags. Please ensure you:
+
+            1. **Document the feature flag** in the PR description
+            2. **Specify the rollout plan** (percentage, target users, etc.)
+            3. **Define cleanup criteria** (when will this flag be removed?)
+            4. **Test both states** (flag enabled and disabled)
+
+            ### Detected Feature Flag Patterns
+
+            \`\`\`
+            ${detectedFlags || 'Feature flag patterns detected in code changes'}
+            \`\`\`
+
+            ### Feature Flag Checklist
+
+            - [ ] Feature flag is documented in the PR description
+            - [ ] Rollout plan is defined
+            - [ ] Both flag states have been tested
+            - [ ] Cleanup criteria is specified (when to remove the flag)
+
+            ---
+            *This comment was automatically generated by the Feature Flag Detection workflow.*
+            `;
+
+            // Check if we already have a comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existingComment = comments.find(comment =>
+              comment.body.includes(commentMarker)
+            );
+
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+              console.log('✅ Updated existing feature flag comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+              console.log('✅ Created feature flag comment');
+            }

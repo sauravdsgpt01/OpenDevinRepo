@@ -30,6 +30,37 @@
 
 Resolves #(issue)
 
+## Feature Flags
+
+<!-- If this PR introduces, modifies, or removes feature flags, please fill out this section.
+     Leave empty if no feature flags are involved. -->
+
+<details>
+<summary>Feature Flag Details (click to expand if applicable)</summary>
+
+**Flag Name:** <!-- e.g., ENABLE_NEW_DASHBOARD -->
+
+**Flag Type:**
+- [ ] New feature flag
+- [ ] Modification to existing flag
+- [ ] Feature flag removal/cleanup
+
+**Description:** <!-- What does this flag control? -->
+
+**Rollout Plan:**
+- [ ] Internal testing only
+- [ ] Percentage rollout (specify %): ___
+- [ ] Specific user groups: ___
+- [ ] Full rollout
+
+**Testing:**
+- [ ] Tested with flag enabled
+- [ ] Tested with flag disabled
+
+**Cleanup Plan:** <!-- When should this flag be removed? What conditions need to be met? -->
+
+</details>
+
 ## Release Notes
 
 <!-- Check the box if this change is worth adding to the release notes. If checked, you must provide an

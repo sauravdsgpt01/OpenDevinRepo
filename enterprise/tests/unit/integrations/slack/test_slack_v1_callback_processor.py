@@ -19,7 +19,10 @@ from integrations.slack.slack_v1_callback_processor import (
 from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationInfo,
 )
-from openhands.app_server.event_callback.event_callback_models import EventCallback
+from openhands.app_server.event_callback.event_callback_models import (
+    EventCallback,
+    EventCallbackStatus,
+)
 from openhands.app_server.event_callback.event_callback_result_models import (
     EventCallbackResultStatus,
 )
@@ -133,7 +136,7 @@ class TestSlackV1CallbackProcessor:
     @patch('storage.slack_team_store.SlackTeamStore.get_instance')
     @patch('integrations.slack.slack_v1_callback_processor.WebClient')
     @patch.object(SlackV1CallbackProcessor, '_request_summary')
-    async def test_double_callback_processing(
+    async def test_callback_marked_completed_after_success(
         self,
         mock_request_summary,
         mock_web_client,
@@ -142,7 +145,7 @@ class TestSlackV1CallbackProcessor:
         finish_event,
         event_callback,
     ):
-        """Test that processor handles double callback correctly and processes both times."""
+        """Test that callback is marked as COMPLETED after successful processing."""
         conversation_id = uuid4()
 
         # Mock SlackTeamStore
@@ -158,28 +161,25 @@ class TestSlackV1CallbackProcessor:
         mock_slack_client.chat_postMessage.return_value = {'ok': True}
         mock_web_client.return_value = mock_slack_client
 
-        # First callback
-        result1 = await slack_callback_processor(
+        # Verify initial status is ACTIVE
+        assert event_callback.status == EventCallbackStatus.ACTIVE
+
+        # Process callback
+        result = await slack_callback_processor(
             conversation_id, event_callback, finish_event
         )
 
-        # Second callback (should not exit, should process again)
-        result2 = await slack_callback_processor(
-            conversation_id, event_callback, finish_event
-        )
+        # Verify callback succeeded
+        assert result is not None
+        assert result.status == EventCallbackResultStatus.SUCCESS
+        assert result.detail == 'Test summary from agent'
 
-        # Verify both callbacks succeeded
-        assert result1 is not None
-        assert result1.status == EventCallbackResultStatus.SUCCESS
-        assert result1.detail == 'Test summary from agent'
+        # Verify callback status is now COMPLETED to prevent further processing
+        assert event_callback.status == EventCallbackStatus.COMPLETED
 
-        assert result2 is not None
-        assert result2.status == EventCallbackResultStatus.SUCCESS
-        assert result2.detail == 'Test summary from agent'
-
-        # Verify both callbacks triggered summary requests and Slack posts
-        assert mock_request_summary.call_count == 2
-        assert mock_slack_client.chat_postMessage.call_count == 2
+        # Verify summary request and Slack post were called once
+        assert mock_request_summary.call_count == 1
+        assert mock_slack_client.chat_postMessage.call_count == 1
 
     # -------------------------------------------------------------------------
     # Successful end-to-end flow
@@ -253,6 +253,9 @@ class TestSlackV1CallbackProcessor:
         assert result.status == EventCallbackResultStatus.SUCCESS
         assert result.conversation_id == conversation_id
         assert result.detail == 'Test summary from agent'
+
+        # Verify callback status is COMPLETED to prevent further processing
+        assert event_callback.status == EventCallbackStatus.COMPLETED
 
         # Verify Slack posting
         mock_slack_client.chat_postMessage.assert_called_once_with(

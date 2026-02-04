@@ -11,6 +11,7 @@ from openhands.agent_server.models import AskAgentRequest, AskAgentResponse
 from openhands.app_server.event_callback.event_callback_models import (
     EventCallback,
     EventCallbackProcessor,
+    EventCallbackStatus,
 )
 from openhands.app_server.event_callback.event_callback_result_models import (
     EventCallbackResult,
@@ -53,6 +54,11 @@ class SlackV1CallbackProcessor(EventCallbackProcessor):
         try:
             summary = await self._request_summary(conversation_id)
             await self._post_summary_to_slack(summary)
+
+            # Mark callback as completed to prevent further processing
+            # The outer execute_callbacks method will persist this change
+            callback.status = EventCallbackStatus.COMPLETED
+            _logger.info('[Slack V1] Marked callback %s as completed', callback.id)
 
             return EventCallbackResult(
                 status=EventCallbackResultStatus.SUCCESS,

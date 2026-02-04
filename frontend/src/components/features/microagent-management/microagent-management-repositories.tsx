@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Accordion, AccordionItem, Spinner } from "@heroui/react";
+import { Accordion, AccordionItem } from "@heroui/react";
+import { Spinner } from "#/components/shared/spinner";
 import { MicroagentManagementRepoMicroagents } from "./microagent-management-repo-microagents";
 import { GitRepository } from "#/types/git";
 import { TabType } from "#/types/microagent-management";

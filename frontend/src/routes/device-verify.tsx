@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useSearchParams } from "react-router";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
+import { Spinner } from "#/components/shared/spinner";
 
 export default function DeviceVerify() {
   const [searchParams] = useSearchParams();
@@ -131,7 +132,7 @@ export default function DeviceVerify() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="max-w-md w-full mx-auto p-6 bg-card rounded-lg shadow-lg">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+            <Spinner size="md" className="text-primary mx-auto mb-4" />
             <p className="text-muted-foreground">
               Processing device verification...
             </p>
@@ -251,7 +252,7 @@ export default function DeviceVerify() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+          <Spinner size="md" className="text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">
             Processing device verification...
           </p>

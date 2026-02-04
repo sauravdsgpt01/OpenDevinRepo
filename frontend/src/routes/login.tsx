@@ -6,6 +6,7 @@ import { useGitHubAuthUrl } from "#/hooks/use-github-auth-url";
 import { useEmailVerification } from "#/hooks/use-email-verification";
 import { LoginContent } from "#/components/features/auth/login-content";
 import { EmailVerificationModal } from "#/components/features/waitlist/email-verification-modal";
+import { Spinner } from "#/components/shared/spinner";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ export default function LoginPage() {
   if (isAuthLoading || config.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-base">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
+        <Spinner size="md" className="text-white" />
       </div>
     );
   }

@@ -57,6 +57,7 @@ const setupDefaultMocks = (
   repositoryDataOverrides: Partial<
     ReturnType<typeof mockUseRepositoryData>
   > = {},
+  urlSearchOverrides: Partial<ReturnType<typeof mockUseUrlSearch>> = {},
 ) => {
   mockUseRepositoryData.mockReturnValue({
     repositories: MOCK_REPOSITORIES,
@@ -73,6 +74,7 @@ const setupDefaultMocks = (
   mockUseUrlSearch.mockReturnValue({
     urlSearchResults: [],
     isUrlSearchLoading: false,
+    ...urlSearchOverrides,
   });
 };
 
@@ -81,9 +83,10 @@ const renderDropdown = (
   repositoryDataOverrides: Partial<
     ReturnType<typeof mockUseRepositoryData>
   > = {},
+  urlSearchOverrides: Partial<ReturnType<typeof mockUseUrlSearch>> = {},
 ) => {
   // Set up mocks with optional overrides
-  setupDefaultMocks(repositoryDataOverrides);
+  setupDefaultMocks(repositoryDataOverrides, urlSearchOverrides);
 
   return render(
     <GitRepoDropdown
@@ -248,6 +251,43 @@ describe("GitRepoDropdown", () => {
       await waitFor(() => {
         expect(input.value).toBe("user/repo-two");
       });
+    });
+  });
+
+  describe("loading states", () => {
+    it("should show spinner when isLoading is true", () => {
+      renderDropdown({}, { isLoading: true, repositories: [] });
+
+      // Spinner should be visible
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    });
+
+    it("should show spinner when isSearchLoading is true", () => {
+      renderDropdown({}, { isSearchLoading: true });
+
+      // Spinner should be visible during search loading
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    });
+
+    it("should show spinner when isFetchingNextPage is true", () => {
+      renderDropdown({}, { isFetchingNextPage: true, hasNextPage: true });
+
+      // Spinner should be visible while fetching next page
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    });
+
+    it("should show spinner when isUrlSearchLoading is true", () => {
+      renderDropdown({}, {}, { isUrlSearchLoading: true });
+
+      // Spinner should be visible during URL search loading
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    });
+
+    it("should show repo icon when not in any loading state", () => {
+      renderDropdown();
+
+      // Spinner should NOT be visible when not loading
+      expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
     });
   });
 });

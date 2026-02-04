@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import CircleIcon from "#/icons/u-circle.svg?react";
 import CheckCircleIcon from "#/icons/u-check-circle.svg?react";
-import LoadingIcon from "#/icons/loading.svg?react";
+import { Spinner } from "#/components/shared/spinner";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { Typography } from "#/ui/typography";
@@ -24,7 +24,7 @@ export function TaskItem({ task }: TaskItemProps) {
       case "todo":
         return <CircleIcon className="w-4 h-4 text-[#ffffff]" />;
       case "in_progress":
-        return <LoadingIcon className="w-4 h-4 text-[#ffffff] animate-spin" />;
+        return <Spinner size="sm" className="text-white" />;
       case "done":
         return <CheckCircleIcon className="w-4 h-4 text-[#A3A3A3]" />;
       default:

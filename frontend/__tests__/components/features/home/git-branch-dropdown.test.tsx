@@ -183,4 +183,170 @@ describe("GitBranchDropdown", () => {
       expect(mockOnBranchSelect).toHaveBeenCalledWith(MOCK_BRANCHES[1]);
     });
   });
+
+  describe("loading states", () => {
+    it("should show spinner when isLoading is true", () => {
+      mockUseBranchData.mockReturnValue({
+        branches: [],
+        isLoading: true,
+        isError: false,
+        fetchNextPage: vi.fn(),
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        isSearchLoading: false,
+      });
+
+      render(
+        <GitBranchDropdown
+          repository="user/repo"
+          provider="github"
+          selectedBranch={null}
+          onBranchSelect={mockOnBranchSelect}
+        />,
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider
+              client={
+                new QueryClient({
+                  defaultOptions: {
+                    queries: {
+                      retry: false,
+                    },
+                  },
+                })
+              }
+            >
+              {children}
+            </QueryClientProvider>
+          ),
+        },
+      );
+
+      // Spinner should be visible
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    });
+
+    it("should show spinner when isSearchLoading is true", () => {
+      mockUseBranchData.mockReturnValue({
+        branches: MOCK_BRANCHES,
+        isLoading: false,
+        isError: false,
+        fetchNextPage: vi.fn(),
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        isSearchLoading: true,
+      });
+
+      render(
+        <GitBranchDropdown
+          repository="user/repo"
+          provider="github"
+          selectedBranch={null}
+          onBranchSelect={mockOnBranchSelect}
+        />,
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider
+              client={
+                new QueryClient({
+                  defaultOptions: {
+                    queries: {
+                      retry: false,
+                    },
+                  },
+                })
+              }
+            >
+              {children}
+            </QueryClientProvider>
+          ),
+        },
+      );
+
+      // Spinner should be visible during search loading
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    });
+
+    it("should show spinner when isFetchingNextPage is true", () => {
+      mockUseBranchData.mockReturnValue({
+        branches: MOCK_BRANCHES,
+        isLoading: false,
+        isError: false,
+        fetchNextPage: vi.fn(),
+        hasNextPage: true,
+        isFetchingNextPage: true,
+        isSearchLoading: false,
+      });
+
+      render(
+        <GitBranchDropdown
+          repository="user/repo"
+          provider="github"
+          selectedBranch={null}
+          onBranchSelect={mockOnBranchSelect}
+        />,
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider
+              client={
+                new QueryClient({
+                  defaultOptions: {
+                    queries: {
+                      retry: false,
+                    },
+                  },
+                })
+              }
+            >
+              {children}
+            </QueryClientProvider>
+          ),
+        },
+      );
+
+      // Spinner should be visible while fetching next page
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    });
+
+    it("should show branch icon when not in any loading state", () => {
+      mockUseBranchData.mockReturnValue({
+        branches: MOCK_BRANCHES,
+        isLoading: false,
+        isError: false,
+        fetchNextPage: vi.fn(),
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        isSearchLoading: false,
+      });
+
+      render(
+        <GitBranchDropdown
+          repository="user/repo"
+          provider="github"
+          selectedBranch={null}
+          onBranchSelect={mockOnBranchSelect}
+        />,
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider
+              client={
+                new QueryClient({
+                  defaultOptions: {
+                    queries: {
+                      retry: false,
+                    },
+                  },
+                })
+              }
+            >
+              {children}
+            </QueryClientProvider>
+          ),
+        },
+      );
+
+      // Spinner should NOT be visible when not loading
+      expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
+    });
+  });
 });

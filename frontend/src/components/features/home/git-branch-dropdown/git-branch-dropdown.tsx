@@ -17,6 +17,7 @@ import { ToggleButton } from "../shared/toggle-button";
 import { ErrorMessage } from "../shared/error-message";
 import { BranchDropdownMenu } from "./branch-dropdown-menu";
 import BranchIcon from "#/icons/u-code-branch.svg?react";
+import { Spinner } from "#/components/shared/spinner";
 
 export interface GitBranchDropdownProps {
   repository: string | null;
@@ -186,7 +187,7 @@ export function GitBranchDropdown({
       <div className="relative">
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
           {isLoadingState ? (
-            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+            <Spinner size="sm" className="text-blue-500" />
           ) : (
             <BranchIcon width={16} height={16} />
           )}

@@ -22,7 +22,7 @@ import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 import { USE_PLANNING_AGENT } from "#/utils/feature-flags";
 
 import { ScrollToBottomButton } from "#/components/shared/buttons/scroll-to-bottom-button";
-import { LoadingSpinner } from "#/components/shared/loading-spinner";
+import { Spinner } from "#/components/shared/spinner";
 import { ChatMessagesSkeleton } from "./chat-messages-skeleton";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
@@ -333,7 +333,7 @@ export function ChatInterface() {
 
           {isChatLoading && !isReturningToConversation && (
             <div className="flex justify-center" data-testid="loading-spinner">
-              <LoadingSpinner size="small" />
+              <Spinner size="sm" />
             </div>
           )}
 

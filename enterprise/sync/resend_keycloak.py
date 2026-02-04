@@ -229,6 +229,15 @@ def add_contact_to_resend(
         raise
 
 
+@retry(
+    stop=stop_after_attempt(MAX_RETRIES),
+    wait=wait_exponential(
+        multiplier=INITIAL_BACKOFF_SECONDS,
+        max=MAX_BACKOFF_SECONDS,
+        exp_base=BACKOFF_FACTOR,
+    ),
+    retry=retry_if_exception_type(ResendError),
+)
 def send_welcome_email(
     email: str,
     first_name: Optional[str] = None,
@@ -245,7 +254,7 @@ def send_welcome_email(
         The API response.
 
     Raises:
-        ResendError: If the API call fails.
+        ResendError: If the API call fails after retries.
     """
     try:
         # Prepare the recipient name

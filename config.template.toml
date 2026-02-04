@@ -223,6 +223,7 @@ model = "gpt-4o"
 # Uncomment and configure to enable model routing with a secondary model
 #[llm.secondary_model]
 #model = "kimi-k2"
+#model = "kimi-k2.5"
 #api_key = ""
 #for_routing = true
 #max_input_tokens = 128000

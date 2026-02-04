@@ -192,6 +192,7 @@ def test_get_features(model, expect):
         # Others
         'kimi-k2-0711-preview',
         'kimi-k2-instruct',
+        'kimi-k2.5',
         'qwen3-coder',
         'qwen3-coder-480b-a35b-instruct',
     ],

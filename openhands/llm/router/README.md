@@ -25,7 +25,7 @@ api_key = "your-api-key"
 
 # Secondary model for routing
 [llm.secondary_model]
-model = "kimi-k2"
+model = "kimi-k2"  # or "kimi-k2.5"
 api_key = "your-api-key"
 for_routing = true
 

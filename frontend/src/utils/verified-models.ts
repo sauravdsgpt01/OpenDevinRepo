@@ -27,6 +27,7 @@ export const VERIFIED_MODELS = [
   "devstral-small-2507",
   "devstral-medium-2507",
   "kimi-k2-0711-preview",
+  "kimi-k2.5",
   "qwen3-coder-480b",
   "gpt-5.2",
   "gpt-5.2-codex",
@@ -89,6 +90,7 @@ export const VERIFIED_OPENHANDS_MODELS = [
   "devstral-medium-2507",
   "devstral-small-2505",
   "kimi-k2-0711-preview",
+  "kimi-k2.5",
   "qwen3-coder-480b",
 ];
 

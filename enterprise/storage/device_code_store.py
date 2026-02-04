@@ -4,8 +4,11 @@ import secrets
 import string
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 from storage.device_code import DeviceCode
+
+from openhands.core.logger import openhands_logger as logger
 
 
 class DeviceCodeStore:
@@ -165,3 +168,38 @@ class DeviceCodeStore:
             session.commit()
 
             return True
+
+    def cleanup_stale_device_codes(self, limit: int = 100) -> int:
+        """Clean up expired device codes based on oldest creation dates.
+
+        Removes device codes that are expired (past their expires_at time).
+
+        Args:
+            limit: Maximum number of codes to delete
+
+        Returns:
+            Total number of device codes deleted
+        """
+        with self.session_maker() as session:
+            # Get expired device codes, ordered by oldest first (using ID as proxy for creation order)
+            expired_codes = (
+                session.query(DeviceCode)
+                .filter(DeviceCode.expires_at < datetime.now(timezone.utc))
+                .order_by(DeviceCode.id.asc())
+                .limit(limit)
+                .all()
+            )
+
+            if not expired_codes:
+                logger.info('No expired device codes found')
+                return 0
+
+            # Delete the expired codes
+            code_ids = [code.id for code in expired_codes]
+            delete_stmt = delete(DeviceCode).where(DeviceCode.id.in_(code_ids))
+            result = session.execute(delete_stmt)
+            session.commit()
+
+            deleted_count = result.rowcount
+            logger.info(f'Deleted {deleted_count} expired device codes')
+            return deleted_count

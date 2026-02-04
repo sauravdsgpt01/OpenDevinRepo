@@ -191,3 +191,65 @@ class TestDeviceCodeStore:
         assert result is True
         mock_device.deny.assert_called_once()
         mock_session.commit.assert_called_once()
+
+    def test_cleanup_stale_device_codes_empty(self, device_code_store, mock_session):
+        """Test cleanup when no expired device codes exist."""
+        # Mock empty query result
+        mock_session.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+
+        result = device_code_store.cleanup_stale_device_codes(limit=50)
+
+        assert result == 0
+        mock_session.query.assert_called_once_with(DeviceCode)
+
+    def test_cleanup_stale_device_codes_with_data(
+        self, device_code_store, mock_session
+    ):
+        """Test cleanup when expired device codes exist."""
+        # Create mock device codes
+        mock_device1 = MagicMock()
+        mock_device1.id = 1
+        mock_device2 = MagicMock()
+        mock_device2.id = 2
+
+        # Mock query result with 2 expired codes
+        mock_session.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [
+            mock_device1,
+            mock_device2,
+        ]
+
+        # Mock the delete execution result
+        mock_result = MagicMock()
+        mock_result.rowcount = 2
+        mock_session.execute.return_value = mock_result
+
+        result = device_code_store.cleanup_stale_device_codes(limit=50)
+
+        assert result == 2
+        mock_session.execute.assert_called_once()
+        mock_session.commit.assert_called_once()
+
+    def test_cleanup_stale_device_codes_with_limit(
+        self, device_code_store, mock_session
+    ):
+        """Test cleanup respects the limit parameter."""
+        # Create mock device codes
+        mock_devices = [MagicMock(id=i) for i in range(1, 4)]  # 3 codes
+
+        # Mock query result with 3 expired codes
+        mock_session.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = mock_devices
+
+        # Mock the delete execution result
+        mock_result = MagicMock()
+        mock_result.rowcount = 3
+        mock_session.execute.return_value = mock_result
+
+        result = device_code_store.cleanup_stale_device_codes(limit=3)
+
+        assert result == 3
+        mock_session.execute.assert_called_once()
+        mock_session.commit.assert_called_once()
+        # Verify the limit was applied in the query
+        mock_session.query.return_value.filter.return_value.order_by.return_value.limit.assert_called_with(
+            3
+        )

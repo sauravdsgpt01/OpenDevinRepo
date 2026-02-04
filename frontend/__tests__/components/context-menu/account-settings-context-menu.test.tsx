@@ -1,9 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
 import { AccountSettingsContextMenu } from "#/components/features/context-menu/account-settings-context-menu";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../../../test-utils";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const mockPosthogCapture = vi.fn();
+const mockUseFeatureFlagEnabled = vi.fn();
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({
+    capture: mockPosthogCapture,
+  }),
+  useFeatureFlagEnabled: () => mockUseFeatureFlagEnabled(),
+}));
 
 describe("AccountSettingsContextMenu", () => {
   const user = userEvent.setup();
@@ -11,15 +21,43 @@ describe("AccountSettingsContextMenu", () => {
   const onLogoutMock = vi.fn();
   const onCloseMock = vi.fn();
 
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+  });
+
   // Create a wrapper with MemoryRouter and renderWithProviders
   const renderWithRouter = (ui: React.ReactElement) => {
     return renderWithProviders(<MemoryRouter>{ui}</MemoryRouter>);
+  };
+
+  const renderWithSaasConfig = (ui: React.ReactElement) => {
+    queryClient.setQueryData(["config"], { APP_MODE: "saas" });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </QueryClientProvider>
+    );
+  };
+
+  const renderWithOssConfig = (ui: React.ReactElement) => {
+    queryClient.setQueryData(["config"], { APP_MODE: "oss" });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </QueryClientProvider>
+    );
   };
 
   afterEach(() => {
     onClickAccountSettingsMock.mockClear();
     onLogoutMock.mockClear();
     onCloseMock.mockClear();
+    mockPosthogCapture.mockClear();
+    mockUseFeatureFlagEnabled.mockClear();
   });
 
   it("should always render the right options", () => {
@@ -91,6 +129,61 @@ describe("AccountSettingsContextMenu", () => {
     await user.click(accountSettingsButton);
     await user.click(document.body);
 
+    expect(onCloseMock).toHaveBeenCalledOnce();
+  });
+
+  it("should show Add Team Members button in SaaS mode when feature flag is enabled", () => {
+    mockUseFeatureFlagEnabled.mockReturnValue(true);
+    renderWithSaasConfig(
+      <AccountSettingsContextMenu
+        onLogout={onLogoutMock}
+        onClose={onCloseMock}
+      />,
+    );
+
+    expect(screen.getByTestId("add-team-members-button")).toBeInTheDocument();
+    expect(screen.getByText("SETTINGS$NAV_ADD_TEAM_MEMBERS")).toBeInTheDocument();
+  });
+
+  it("should not show Add Team Members button in SaaS mode when feature flag is disabled", () => {
+    mockUseFeatureFlagEnabled.mockReturnValue(false);
+    renderWithSaasConfig(
+      <AccountSettingsContextMenu
+        onLogout={onLogoutMock}
+        onClose={onCloseMock}
+      />,
+    );
+
+    expect(screen.queryByTestId("add-team-members-button")).not.toBeInTheDocument();
+    expect(screen.queryByText("SETTINGS$NAV_ADD_TEAM_MEMBERS")).not.toBeInTheDocument();
+  });
+
+  it("should not show Add Team Members button in OSS mode even when feature flag is enabled", () => {
+    mockUseFeatureFlagEnabled.mockReturnValue(true);
+    renderWithOssConfig(
+      <AccountSettingsContextMenu
+        onLogout={onLogoutMock}
+        onClose={onCloseMock}
+      />,
+    );
+
+    expect(screen.queryByTestId("add-team-members-button")).not.toBeInTheDocument();
+    expect(screen.queryByText("SETTINGS$NAV_ADD_TEAM_MEMBERS")).not.toBeInTheDocument();
+  });
+
+  it("should fire Posthog event and call onClose when Add Team Members button is clicked", async () => {
+    mockUseFeatureFlagEnabled.mockReturnValue(true);
+    renderWithSaasConfig(
+      <AccountSettingsContextMenu
+        onLogout={onLogoutMock}
+        onClose={onCloseMock}
+      />,
+    );
+
+    const addTeamMembersButton = screen.getByTestId("add-team-members-button");
+    await user.click(addTeamMembersButton);
+
+    expect(mockPosthogCapture).toHaveBeenCalledWith("exp_add_team_members");
     expect(onCloseMock).toHaveBeenCalledOnce();
   });
 });

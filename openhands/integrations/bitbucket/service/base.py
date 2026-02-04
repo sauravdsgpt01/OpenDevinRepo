@@ -6,6 +6,7 @@ from pydantic import SecretStr
 
 from openhands.integrations.protocols.http_client import HTTPClient
 from openhands.integrations.service_types import (
+    AuthenticationError,
     BaseGitService,
     OwnerType,
     ProviderType,
@@ -23,6 +24,15 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
     """
 
     BASE_URL = 'https://api.bitbucket.org/2.0'
+
+    @property
+    def _is_server(self) -> bool:
+        return getattr(self, 'bitbucket_mode', 'cloud') == 'server'
+
+    def _repo_api_base(self, owner: str, repo: str) -> str:
+        if self._is_server:
+            return f'{self.BASE_URL}/projects/{owner}/repos/{repo}'
+        return f'{self.BASE_URL}/repositories/{owner}/{repo}'
 
     def _extract_owner_and_repo(self, repository: str) -> tuple[str, str]:
         """Extract owner and repo from repository string.
@@ -100,7 +110,11 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
                         method=method,
                     )
                 response.raise_for_status()
-                return response.json(), dict(response.headers)
+                try:
+                    data = response.json()
+                except ValueError:
+                    data = response.text
+                return data, dict(response.headers)
         except httpx.HTTPStatusError as e:
             raise self.handle_http_status_error(e)
         except httpx.HTTPError as e:
@@ -121,6 +135,7 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
         """
         all_items: list[dict] = []
         current_url = url
+        base_endpoint = url
 
         while current_url and len(all_items) < max_items:
             response, _ = await self._make_request(current_url, params)
@@ -129,16 +144,55 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
             page_items = response.get('values', [])
             all_items.extend(page_items)
 
-            # Get next page URL from response
-            current_url = response.get('next')
-
-            # Clear params for subsequent requests as they're included in the next URL
-            params = {}
+            if self._is_server:
+                if response.get('isLastPage', True):
+                    break
+                next_start = response.get('nextPageStart')
+                if next_start is None:
+                    break
+                params = params or {}
+                params = dict(params)
+                params['start'] = next_start
+                current_url = base_endpoint
+            else:
+                current_url = response.get('next')
+                params = {}
 
         return all_items[:max_items]
 
     async def get_user(self) -> User:
         """Get the authenticated user's information."""
+        if self._is_server:
+            token_value = self.token.get_secret_value()
+            # PAT auth - return empty user since we can't determine identity
+            if ':' not in token_value:
+                return User(id='', login='', avatar_url='', name=None, email=None)
+
+            # Basic auth - extract username and query users API to get slug
+            name = token_value.split(':', 1)[0]
+            users_url = f'{self.BASE_URL}/users'
+            data, _ = await self._make_request(users_url, {'filter': name})
+            users = data.get('values', [])
+            if not users:
+                raise AuthenticationError(f'User not found: {name}')
+
+            user_data = users[0]
+            links = user_data.get('links', {})
+            avatar = ''
+            if isinstance(links, dict):
+                self_links = links.get('self') or []
+                if self_links and isinstance(self_links, list):
+                    avatar = self_links[0].get('href', '')
+            display_name = data.get('displayName')
+            email = data.get('emailAddress')
+            return User(
+                id=str(user_data.get('id') or user_data.get('slug') or name),
+                login=user_data.get('name') or name,
+                avatar_url=avatar,
+                name=display_name,
+                email=email,
+            )
+
         url = f'{self.BASE_URL}/user'
         data, _ = await self._make_request(url)
 
@@ -164,8 +218,36 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
         Returns:
             Repository object
         """
-        repo_id = repo.get('uuid', '')
+        owner_type = OwnerType.ORGANIZATION
 
+        if self._is_server:
+            project = repo.get('project', {}) or {}
+            workspace_slug = project.get('key', '')
+            repo_slug = repo.get('slug', '')
+            full_name = (
+                f'{workspace_slug}/{repo_slug}'
+                if workspace_slug and repo_slug
+                else repo_slug
+            )
+            default_branch = repo.get('defaultBranch') or {}
+            main_branch = default_branch.get('displayId')
+            if not main_branch and default_branch.get('id', '').startswith(
+                'refs/heads/'
+            ):
+                main_branch = default_branch['id'].split('refs/heads/', 1)[-1]
+            return Repository(
+                id=str(repo.get('id', repo_slug)),
+                full_name=full_name,  # type: ignore[arg-type]
+                git_provider=ProviderType.BITBUCKET,
+                is_public=repo.get('public', False),
+                stargazers_count=None,
+                pushed_at=repo.get('updatedDate'),
+                owner_type=owner_type,
+                link_header=link_header,
+                main_branch=main_branch,
+            )
+
+        repo_id = repo.get('uuid', '')
         workspace_slug = repo.get('workspace', {}).get('slug', '')
         repo_slug = repo.get('slug', '')
         full_name = (
@@ -173,7 +255,6 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
         )
 
         is_public = not repo.get('is_private', True)
-        owner_type = OwnerType.ORGANIZATION
         main_branch = repo.get('mainbranch', {}).get('name')
 
         return Repository(
@@ -199,7 +280,8 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
         Returns:
             Repository object with details
         """
-        url = f'{self.BASE_URL}/repositories/{repository}'
+        owner, repo = self._extract_owner_and_repo(repository)
+        url = self._repo_api_base(owner, repo)
         data, _ = await self._make_request(url)
         return self._parse_repository(data)
 
@@ -211,6 +293,12 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
             raise ResourceNotFoundError(
                 f'Main branch not found for repository {repository}. '
                 f'This repository may be empty or have no default branch configured.'
+            )
+        if self._is_server:
+            owner, repo = self._extract_owner_and_repo(repository)
+            return (
+                f'{self.BASE_URL}/projects/{owner}/repos/{repo}/browse/.cursorrules'
+                f'?at=refs/heads/{repo_details.main_branch}'
             )
         return f'{self.BASE_URL}/repositories/{repository}/src/{repo_details.main_branch}/.cursorrules'
 
@@ -224,6 +312,12 @@ class BitBucketMixinBase(BaseGitService, HTTPClient):
             raise ResourceNotFoundError(
                 f'Main branch not found for repository {repository}. '
                 f'This repository may be empty or have no default branch configured.'
+            )
+        if self._is_server:
+            owner, repo = self._extract_owner_and_repo(repository)
+            return (
+                f'{self.BASE_URL}/projects/{owner}/repos/{repo}/browse/{microagents_path}'
+                f'?at=refs/heads/{repo_details.main_branch}'
             )
         return f'{self.BASE_URL}/repositories/{repository}/src/{repo_details.main_branch}/{microagents_path}'
 

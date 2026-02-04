@@ -8,7 +8,7 @@ import pathlib
 import shutil
 import subprocess
 from argparse import Namespace
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from termcolor import colored
@@ -137,6 +137,12 @@ class IssueResolver:
                 else 'dev.azure.com'
             )
 
+        self.bitbucket_mode: Literal['cloud', 'server'] = getattr(
+            args, 'bitbucket_mode', 'cloud'
+        )
+        if self.bitbucket_mode not in {'cloud', 'server'}:
+            raise ValueError(f'Unsupported Bitbucket mode: {self.bitbucket_mode}')
+
         self.output_dir = args.output_dir
         self.issue_type = issue_type
         self.issue_number = args.issue_number
@@ -176,6 +182,7 @@ class IssueResolver:
             base_domain=base_domain,
             issue_type=self.issue_type,
             llm_config=self.app_config.get_llm_config(),
+            bitbucket_mode=self.bitbucket_mode,
         )
         self.issue_handler = factory.create()
 

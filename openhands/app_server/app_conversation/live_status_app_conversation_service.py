@@ -634,11 +634,20 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         if model and model.startswith('openhands/'):
             base_url = user.llm_base_url or self.openhands_provider_base_url
 
+        # Get timeout from user settings, default to None if not specified
+        timeout = getattr(user, 'timeout', None)
+
+        # Validate timeout - must be None or an integer between 10 and 3600 seconds
+        if timeout is not None:
+            if not isinstance(timeout, int) or timeout < 10 or timeout > 3600:
+                timeout = None
+
         return LLM(
             model=model,
             base_url=base_url,
             api_key=user.llm_api_key,
             usage_id='agent',
+            timeout=timeout,
         )
 
     async def _get_tavily_api_key(self, user: UserInfo) -> str | None:

@@ -13,6 +13,7 @@ import type {
   V1AppConversation,
   GetSkillsResponse,
   V1RuntimeConversationInfo,
+  PluginSpec,
 } from "./v1-conversation-service.types";
 
 class V1ConversationService {
@@ -64,6 +65,7 @@ class V1ConversationService {
     trigger?: ConversationTrigger,
     parent_conversation_id?: string,
     agent_type?: "default" | "plan",
+    plugins?: PluginSpec[],
   ): Promise<V1AppConversationStartTask> {
     const body: V1AppConversationStartRequest = {
       selected_repository: selectedRepository,
@@ -73,6 +75,7 @@ class V1ConversationService {
       trigger,
       parent_conversation_id: parent_conversation_id || null,
       agent_type,
+      plugins: plugins || null,
     };
 
     // Add initial message if provided

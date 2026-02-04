@@ -1854,6 +1854,9 @@ class TestKeycloakCallbackRecaptcha:
             patch('server.routes.auth.logger') as mock_logger,
             patch('server.routes.email.verify_email', new_callable=AsyncMock),
             patch('server.routes.auth.UserStore') as mock_user_store,
+            patch(
+                'server.routes.auth._store_login_event', new_callable=AsyncMock
+            ) as mock_store_login_event,
         ):
             mock_token_manager.get_keycloak_tokens = AsyncMock(
                 return_value=('test_access_token', 'test_refresh_token')
@@ -1888,7 +1891,10 @@ class TestKeycloakCallbackRecaptcha:
                 code='test_code', state=encoded_state, request=mock_request
             )
 
-            # Assert
+            # Assert - verify login event was stored
+            mock_store_login_event.assert_called_once()
+
+            # Assert - verify warning was logged for blocked user
             mock_logger.warning.assert_called_once()
             call_kwargs = mock_logger.warning.call_args
             assert call_kwargs[0][0] == 'recaptcha_blocked_at_callback'

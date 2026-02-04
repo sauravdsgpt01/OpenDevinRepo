@@ -41,3 +41,4 @@ class User(Base):  # type: ignore
     stored_conversation_metadata_saas = relationship(
         'StoredConversationMetadataSaas', back_populates='user'
     )
+    login_events = relationship('LoginEvent', back_populates='user')

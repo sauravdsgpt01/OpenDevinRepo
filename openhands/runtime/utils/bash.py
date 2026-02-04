@@ -521,15 +521,16 @@ class BashSession:
                 )
 
         # Check if the command is a single command or multiple commands
-        splited_commands = split_bash_commands(command)
-        if len(splited_commands) > 1:
-            return ErrorObservation(
-                content=(
-                    f'ERROR: Cannot execute multiple commands at once.\n'
-                    f'Please run each command separately OR chain them into a single command via && or ;\n'
-                    f'Provided commands:\n{"\n".join(f"({i + 1}) {cmd}" for i, cmd in enumerate(splited_commands))}'
+        if not is_input:
+            splited_commands = split_bash_commands(command)
+            if len(splited_commands) > 1:
+                return ErrorObservation(
+                    content=(
+                        f'ERROR: Cannot execute multiple commands at once.\n'
+                        f'Please run each command separately OR chain them into a single command via && or ;\n'
+                        f'Provided commands:\n{"\n".join(f"({i + 1}) {cmd}" for i, cmd in enumerate(splited_commands))}'
+                    )
                 )
-            )
 
         # Get initial state before sending command
         initial_pane_output = self._get_pane_content()

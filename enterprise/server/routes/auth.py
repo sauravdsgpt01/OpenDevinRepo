@@ -27,6 +27,7 @@ from server.config import sign_token
 from server.constants import IS_FEATURE_ENV
 from server.routes.event_webhook import _get_session_api_key, _get_user_id
 from storage.database import session_maker
+from storage.org_service import OrgService
 from storage.user import User
 from storage.user_store import UserStore
 
@@ -384,6 +385,13 @@ async def keycloak_callback(
             f'{request.base_url}accept-tos?redirect_url={encoded_redirect_url}'
         )
         response = RedirectResponse(tos_redirect_url, status_code=302)
+    # if new user must complete onboarding, redirect to the onboarding-form
+    elif await OrgService.needs_onboarding(user):
+        encoded_redirect_url = quote(redirect_url, safe='')
+        onboarding_url = (
+            f'{request.base_url}onboarding?redirect_url={encoded_redirect_url}'
+        )
+        response = RedirectResponse(onboarding_url, status_code=302)
     else:
         response = RedirectResponse(redirect_url, status_code=302)
 

@@ -99,6 +99,23 @@ export const useTracking = () => {
     });
   };
 
+  const trackOnboardingCompleted = ({
+    role,
+    orgSize,
+    useCase,
+  }: {
+    role: string;
+    orgSize: string;
+    useCase: string;
+  }) => {
+    posthog.capture("onboarding_completed", {
+      role,
+      org_size: orgSize,
+      use_case: useCase,
+      ...commonProperties,
+    });
+  };
+
   return {
     trackLoginButtonClick,
     trackConversationCreated,
@@ -109,5 +126,6 @@ export const useTracking = () => {
     trackUserSignupCompleted,
     trackCreditsPurchased,
     trackCreditLimitReached,
+    trackOnboardingCompleted,
   };
 };

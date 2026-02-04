@@ -15,12 +15,15 @@ from server.routes.org_models import (
     OrgNotFoundError,
     OrgUpdate,
 )
+from sqlalchemy import select
+from storage.database import a_session_maker
 from storage.lite_llm_manager import LiteLlmManager
 from storage.org import Org
 from storage.org_member import OrgMember
 from storage.org_member_store import OrgMemberStore
 from storage.org_store import OrgStore
 from storage.role_store import RoleStore
+from storage.user import User
 from storage.user_store import UserStore
 
 from openhands.core.logger import openhands_logger as logger
@@ -842,3 +845,40 @@ class OrgService:
                 extra={'user_id': user_id, 'org_id': str(org_id), 'error': str(e)},
             )
             raise OrgDatabaseError(f'Failed to delete organization: {str(e)}')
+
+    @staticmethod
+    async def needs_onboarding(user: User) -> bool:
+        """
+        Check if a user needs to complete onboarding.
+
+        A user needs onboarding if they don't have a personal org
+        and don't have any org membership.
+
+        Args:
+            user: User entity to check
+
+        Returns:
+            bool: True if user needs onboarding, False otherwise
+        """
+        async with a_session_maker() as session:
+            user_id = user.id
+            personal_org_name = f'user_{user_id}_org'
+
+            # Check 1: Does the user have a personal org?
+            result = await session.execute(
+                select(Org).where(Org.name == personal_org_name)
+            )
+            personal_org = result.scalar_one_or_none()
+            if personal_org:
+                return False
+
+            # Check 2: Does the user have any org membership (any status)?
+            result = await session.execute(
+                select(OrgMember).where(OrgMember.user_id == user_id).limit(1)
+            )
+            any_membership = result.scalar_one_or_none()
+            if any_membership:
+                return False
+
+            # User is "new" - needs onboarding
+            return True

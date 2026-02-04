@@ -667,6 +667,23 @@ class AgentController:
         self._pending_action = None
         self.agent.reset()
 
+    def _enqueue_agent_finish_hook(self) -> None:
+        if self.is_delegate:
+            return
+
+        hook_script = '.openhands/agent_finish.sh'
+        command = (
+            'REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"\n'
+            f'HOOK="$REPO_ROOT/{hook_script}"\n'
+            'if [ -f "$HOOK" ]; then\n'
+            '  chmod +x "$HOOK" && (cd "$REPO_ROOT" && source "' + hook_script + '")\n'
+            'fi'
+        )
+
+        action = CmdRunAction(command=command, blocking=True, hidden=True)
+        action.set_hard_timeout(600)
+        self.event_stream.add_event(action, EventSource.ENVIRONMENT)
+
     async def set_agent_state_to(self, new_state: AgentState) -> None:
         """Updates the agent's state and handles side effects. Can emit events to the event stream.
 
@@ -716,6 +733,10 @@ class AgentController:
             AgentStateChangedObservation('', self.state.agent_state, reason),
             EventSource.ENVIRONMENT,
         )
+
+
+        if new_state == AgentState.FINISHED:
+            self._enqueue_agent_finish_hook()
 
         # Save state whenever agent state changes to ensure we don't lose state
         # in case of crashes or unexpected circumstances

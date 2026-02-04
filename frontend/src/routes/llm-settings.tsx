@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import { useSearchParams } from "react-router";
 import { ModelSelector } from "#/components/shared/modals/settings/model-selector";
+import { createPermissionGuard } from "#/utils/org/permission-guard";
 import { organizeModelsAndProviders } from "#/utils/organize-models-and-providers";
 import { useAIConfigOptions } from "#/hooks/query/use-ai-config-options";
 import { useSettings } from "#/hooks/query/use-settings";
@@ -29,6 +30,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { getProviderId } from "#/utils/map-provider";
 import { DEFAULT_OPENHANDS_MODEL } from "#/utils/verified-models";
 import { useMe } from "#/hooks/query/use-me";
+import { usePermission } from "#/hooks/organizations/use-permissions";
 
 interface OpenHandsApiKeyHelpProps {
   testId: string;
@@ -71,9 +73,10 @@ function LlmSettingsScreen() {
   const { data: settings, isLoading, isFetching } = useSettings();
   const { data: config } = useConfig();
   const { data: me } = useMe();
+  const { hasPermission } = usePermission(me?.role ?? "member");
 
-  // Determine if user is read-only (users can only view, owners and admins can edit)
-  const isReadOnly = me?.role !== "owner" && me?.role !== "admin";
+  // Determine if user is read-only (members can only view, owners and admins can edit)
+  const isReadOnly = !hasPermission("edit_llm_settings");
 
   const [view, setView] = React.useState<"basic" | "advanced">("basic");
 
@@ -777,5 +780,9 @@ function LlmSettingsScreen() {
     </div>
   );
 }
+
+// Route protection: all roles have view_llm_settings, but this guard ensures
+// consistency with other routes and allows future restrictions if needed
+export const clientLoader = createPermissionGuard("view_llm_settings");
 
 export default LlmSettingsScreen;

@@ -8,7 +8,6 @@ import CloseIcon from "#/icons/close.svg?react";
 import { SettingsDropdownInput } from "./settings-dropdown-input";
 import { useSelectedOrganizationId } from "#/context/use-selected-organization";
 import { useOrganizations } from "#/hooks/query/use-organizations";
-import { useMe } from "#/hooks/query/use-me";
 import { SettingsNavItem } from "#/constants/settings-nav";
 
 interface SettingsNavigationProps {
@@ -24,11 +23,8 @@ export function SettingsNavigation({
 }: SettingsNavigationProps) {
   const { organizationId, setOrganizationId } = useSelectedOrganizationId();
   const { data: organizations } = useOrganizations();
-  const { data: me } = useMe();
 
   const { t } = useTranslation();
-
-  const isUser = me?.role === "member";
 
   return (
     <>
@@ -90,40 +86,27 @@ export function SettingsNavigation({
         </div>
 
         <div className="flex flex-col gap-2">
-          {navigationItems
-            .filter((navItem) => {
-              // if user is not an admin or no org is selected, do not show organization members/org settings
-              if (
-                (navItem.to === "/settings/org-members" ||
-                  navItem.to === "/settings/org") &&
-                (isUser || !organizationId)
-              ) {
-                return false;
+          {navigationItems.map(({ to, icon, text }) => (
+            <NavLink
+              end
+              key={to}
+              to={to}
+              onClick={onCloseMobileMenu}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 p-1 sm:px-[14px] sm:py-2 rounded-md transition-colors",
+                  isActive ? "bg-[#454545]" : "hover:bg-[#454545]",
+                )
               }
-
-              return true;
-            })
-            .map(({ to, icon, text }) => (
-              <NavLink
-                end
-                key={to}
-                to={to}
-                onClick={onCloseMobileMenu}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 p-1 sm:px-[14px] sm:py-2 rounded-md transition-colors",
-                    isActive ? "bg-[#454545]" : "hover:bg-[#454545]",
-                  )
-                }
-              >
-                {icon}
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <Typography.Text className="text-[#A3A3A3] whitespace-nowrap">
-                    {t(text as I18nKey)}
-                  </Typography.Text>
-                </div>
-              </NavLink>
-            ))}
+            >
+              {icon}
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <Typography.Text className="text-[#A3A3A3] whitespace-nowrap">
+                  {t(text as I18nKey)}
+                </Typography.Text>
+              </div>
+            </NavLink>
+          ))}
         </div>
       </nav>
     </>

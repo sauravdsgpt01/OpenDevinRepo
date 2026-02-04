@@ -48,11 +48,11 @@ export function UserActions({ user, isLoading }: UserActionsProps) {
             accountContextMenuIsVisible && "opacity-100 pointer-events-auto",
             // Invisible hover bridge: extends hover zone to create a "safe corridor"
             // for diagonal mouse movement to the menu (only active when menu is visible)
-            "group-hover:before:content-[''] group-hover:before:block group-hover:before:absolute group-hover:before:inset-[-320px] group-hover:before:z-9998",
+            "group-hover:before:content-[''] group-hover:before:block group-hover:before:absolute group-hover:before:inset-[-320px] group-hover:before:z-50",
           )}
         >
           <UserContextMenu
-            type={me?.role || "member"}
+            type={me?.role ?? "member"}
             onClose={closeAccountMenu}
           />
         </div>

@@ -1,41 +1,69 @@
 import { OrganizationUserRole } from "#/types/org";
 
-type UserRoleChangePermissionKey = "change_user_role";
+/* PERMISSION TYPES */
+type UserRoleChangePermissionKey = `change_user_role:${OrganizationUserRole}`;
 type InviteUserToOrganizationKey = "invite_user_to_organization";
-
-type ChangeUserRolePermission =
-  `${UserRoleChangePermissionKey}:${OrganizationUserRole}`;
 
 type ChangeOrganizationNamePermission = "change_organization_name";
 type DeleteOrganizationPermission = "delete_organization";
 type AddCreditsPermission = "add_credits";
+type ViewBillingPermission = "view_billing";
 
-type UserPermission =
+type ManageSecretsPermission = "manage_secrets";
+type ManageMCPPermission = "manage_mcp";
+type ManageIntegrationsPermission = "manage_integrations";
+type ManageApplicationSettingsPermission = "manage_application_settings";
+type ManageAPIKeysPermission = "manage_api_keys";
+
+type ViewLLMSettingsPermission = "view_llm_settings";
+type EditLLMSettingsPermission = "edit_llm_settings";
+
+// Union of all permission keys
+export type PermissionKey =
+  | UserRoleChangePermissionKey
   | InviteUserToOrganizationKey
-  | ChangeUserRolePermission
   | ChangeOrganizationNamePermission
   | DeleteOrganizationPermission
-  | AddCreditsPermission;
+  | AddCreditsPermission
+  | ViewBillingPermission
+  | ManageSecretsPermission
+  | ManageMCPPermission
+  | ManageIntegrationsPermission
+  | ManageApplicationSettingsPermission
+  | ManageAPIKeysPermission
+  | ViewLLMSettingsPermission
+  | EditLLMSettingsPermission;
 
-const ownerPerms: UserPermission[] = [
+/* PERMISSION ARRAYS */
+const memberPerms: PermissionKey[] = [
+  "manage_secrets",
+  "manage_mcp",
+  "manage_integrations",
+  "manage_application_settings",
+  "manage_api_keys",
+  "view_llm_settings",
+];
+
+const adminOnly: PermissionKey[] = [
+  "edit_llm_settings",
+  "view_billing",
+  "add_credits",
   "invite_user_to_organization",
+  "change_user_role:member",
+  "change_user_role:admin",
+];
+
+const ownerOnly: PermissionKey[] = [
   "change_organization_name",
   "delete_organization",
-  "add_credits",
   "change_user_role:owner",
-  "change_user_role:admin",
-  "change_user_role:member",
 ];
-const adminPerms: UserPermission[] = [
-  "invite_user_to_organization",
-  "add_credits",
-  "change_user_role:admin",
-  "change_user_role:member",
-];
-const userPerms: UserPermission[] = [];
 
-export const rolePermissions: Record<OrganizationUserRole, UserPermission[]> = {
+const adminPerms: PermissionKey[] = [...memberPerms, ...adminOnly];
+const ownerPerms: PermissionKey[] = [...adminPerms, ...ownerOnly];
+
+export const rolePermissions: Record<OrganizationUserRole, PermissionKey[]> = {
   owner: ownerPerms,
   admin: adminPerms,
-  member: userPerms,
+  member: memberPerms,
 };

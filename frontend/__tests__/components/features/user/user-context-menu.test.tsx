@@ -10,6 +10,8 @@ import { INITIAL_MOCK_ORGS } from "#/mocks/org-handlers";
 import AuthService from "#/api/auth-service/auth-service.api";
 import { SAAS_NAV_ITEMS, OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import OptionService from "#/api/option-service/option-service.api";
+import { OrganizationMember } from "#/types/org";
+import { useSelectedOrganizationStore } from "#/stores/selected-organization-store";
 
 type UserContextMenuProps = GetComponentPropTypes<typeof UserContextMenu>;
 
@@ -48,6 +50,29 @@ vi.mock("react-router", async (importActual) => ({
   }),
 }));
 
+const createMockUser = (
+  overrides: Partial<OrganizationMember> = {},
+): OrganizationMember => ({
+  org_id: "org-1",
+  user_id: "user-1",
+  email: "test@example.com",
+  role: "member",
+  llm_api_key: "",
+  max_iterations: 100,
+  llm_model: "gpt-4",
+  llm_api_key_for_byor: null,
+  llm_base_url: "",
+  status: "active",
+  ...overrides,
+});
+
+const seedActiveUser = (user: Partial<OrganizationMember>) => {
+  useSelectedOrganizationStore.setState({ organizationId: "org-1" });
+  vi.spyOn(organizationService, "getMe").mockResolvedValue(
+    createMockUser(user),
+  );
+};
+
 describe("UserContextMenu", () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -68,13 +93,13 @@ describe("UserContextMenu", () => {
     expect(screen.queryByText("ORG$MANAGE_ACCOUNT")).not.toBeInTheDocument();
   });
 
-  it("should render navigation items from SAAS_NAV_ITEMS (except organization-members/org)", async () => {
+  it("should NOT render the 'Billing' Nav Item from SAAS_NAV_ITEMS when user role is member", async () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue({
       APP_MODE: "saas",
       GITHUB_CLIENT_ID: "test",
       POSTHOG_CLIENT_KEY: "test",
       FEATURE_FLAGS: {
-        ENABLE_BILLING: false,
+        ENABLE_BILLING: true,
         HIDE_LLM_SETTINGS: false,
         HIDE_BILLING: false,
         ENABLE_JIRA: false,
@@ -84,6 +109,38 @@ describe("UserContextMenu", () => {
     });
 
     renderUserContextMenu({ type: "member", onClose: vi.fn });
+
+    // Wait for config to load and verify that navigation items are rendered (except organization-members/org which are filtered out)
+    const expectedItems = SAAS_NAV_ITEMS.filter(
+      (item) =>
+        item.to !== "/settings/org-members" && item.to !== "/settings/org" && item.to !== "/settings/billing",
+    );
+
+    await waitFor(() => {
+      expectedItems.forEach((item) => {
+        expect(screen.getByText(item.text)).toBeInTheDocument();
+      });
+    });
+  });
+
+  it("should render navigation items from SAAS_NAV_ITEMS when user role is admin (except organization-members/org)", async () => {
+    vi.spyOn(OptionService, "getConfig").mockResolvedValue({
+      APP_MODE: "saas",
+      GITHUB_CLIENT_ID: "test",
+      POSTHOG_CLIENT_KEY: "test",
+      FEATURE_FLAGS: {
+        ENABLE_BILLING: true,
+        HIDE_LLM_SETTINGS: false,
+        HIDE_BILLING: false,
+        ENABLE_JIRA: false,
+        ENABLE_JIRA_DC: false,
+        ENABLE_LINEAR: false,
+      },
+    });
+
+    seedActiveUser({ role: 'admin' })
+
+    renderUserContextMenu({ type: "admin", onClose: vi.fn });
 
     // Wait for config to load and verify that navigation items are rendered (except organization-members/org which are filtered out)
     const expectedItems = SAAS_NAV_ITEMS.filter(
@@ -257,7 +314,9 @@ describe("UserContextMenu", () => {
       },
     });
 
-    renderUserContextMenu({ type: "member", onClose: vi.fn });
+    seedActiveUser({ role: 'admin' })
+
+    renderUserContextMenu({ type: "admin", onClose: vi.fn });
 
     // Wait for config to load and test a few representative nav items have the correct href
     await waitFor(() => {
@@ -265,13 +324,22 @@ describe("UserContextMenu", () => {
       expect(userLink).toHaveAttribute("href", "/settings/user");
     });
 
-    const billingLink = screen.getByText("SETTINGS$NAV_BILLING").closest("a");
-    expect(billingLink).toHaveAttribute("href", "/settings/billing");
+    await waitFor(() => {
+      const billingLink = screen
+        .getByText("SETTINGS$NAV_BILLING")
+        .closest("a");
+      expect(billingLink).toHaveAttribute("href", "/settings/billing");
+    });
 
-    const integrationsLink = screen
-      .getByText("SETTINGS$NAV_INTEGRATIONS")
-      .closest("a");
-    expect(integrationsLink).toHaveAttribute("href", "/settings/integrations");
+    await waitFor(() => {
+      const integrationsLink = screen
+        .getByText("SETTINGS$NAV_INTEGRATIONS")
+        .closest("a");
+      expect(integrationsLink).toHaveAttribute(
+        "href",
+        "/settings/integrations",
+      );
+    });
   });
 
   it("should navigate to /settings/org-members when Manage Organization Members is clicked", async () => {

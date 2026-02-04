@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import i18next from "i18next";
 import { I18nextProvider } from "react-i18next";
-import GitSettingsScreen from "#/routes/git-settings";
+import GitSettingsScreen, { clientLoader } from "#/routes/git-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import OptionService from "#/api/option-service/option-service.api";
 import AuthService from "#/api/auth-service/auth-service.api";
@@ -670,5 +670,12 @@ describe("GitLab Webhook Manager Integration", () => {
       ).toBeInTheDocument();
       expect(getResourcesSpy).toHaveBeenCalled();
     });
+  });
+});
+
+describe("clientLoader permission checks", () => {
+  it("should export a clientLoader for route protection", () => {
+    expect(clientLoader).toBeDefined();
+    expect(typeof clientLoader).toBe("function");
   });
 });

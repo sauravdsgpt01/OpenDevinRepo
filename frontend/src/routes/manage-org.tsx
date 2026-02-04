@@ -1,26 +1,23 @@
 import React from "react";
-import { redirect } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useCreateStripeCheckoutSession } from "#/hooks/mutation/stripe/use-create-stripe-checkout-session";
 import { useOrganization } from "#/hooks/query/use-organization";
 import { useOrganizationPaymentInfo } from "#/hooks/query/use-organization-payment-info";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { cn } from "#/utils/utils";
-import { organizationService } from "#/api/organization-service/organization-service.api";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useMe } from "#/hooks/query/use-me";
 import { useConfig } from "#/hooks/query/use-config";
-import { rolePermissions } from "#/utils/org/permissions";
-import { getSelectedOrganizationIdFromStore } from "#/stores/selected-organization-store";
-import { getMeFromQueryClient } from "#/utils/query-client-getters";
-import { queryClient } from "#/query-client-config";
 import { I18nKey } from "#/i18n/declaration";
 import { amountIsValid } from "#/utils/amount-is-valid";
 import { useUpdateOrganization } from "#/hooks/mutation/use-update-organization";
 import { useDeleteOrganization } from "#/hooks/mutation/use-delete-organization";
 import { CreditsChip } from "#/ui/credits-chip";
 import { InteractiveChip } from "#/ui/interactive-chip";
+import { usePermission } from "#/hooks/organizations/use-permissions";
+import { createPermissionGuard } from "#/utils/org/permission-guard";
+import { isBillingHidden } from "#/utils/org/billing-visibility";
 
 interface ChangeOrgNameModalProps {
   onClose: () => void;
@@ -209,22 +206,7 @@ function AddCreditsModal({ onClose }: AddCreditsModalProps) {
   );
 }
 
-export const clientLoader = async () => {
-  const selectedOrgId = getSelectedOrganizationIdFromStore();
-  let me = getMeFromQueryClient(selectedOrgId);
-
-  if (!me && selectedOrgId) {
-    me = await organizationService.getMe({ orgId: selectedOrgId });
-    queryClient.setQueryData(["organizations", selectedOrgId, "me"], me);
-  }
-
-  if (!me || me.role === "member") {
-    // if user is USER role, redirect to user settings
-    return redirect("/settings/user");
-  }
-
-  return null;
-};
+export const clientLoader = createPermissionGuard("view_billing");
 
 function ManageOrg() {
   const { t } = useTranslation();
@@ -233,6 +215,9 @@ function ManageOrg() {
   const { data: organizationPaymentInfo } = useOrganizationPaymentInfo();
   const { data: config } = useConfig();
 
+  const role = me?.role ?? "member";
+  const { hasPermission } = usePermission(role);
+
   const [addCreditsFormVisible, setAddCreditsFormVisible] =
     React.useState(false);
   const [changeOrgNameFormVisible, setChangeOrgNameFormVisible] =
@@ -240,13 +225,13 @@ function ManageOrg() {
   const [deleteOrgConfirmationVisible, setDeleteOrgConfirmationVisible] =
     React.useState(false);
 
-  const canChangeOrgName =
-    !!me && rolePermissions[me.role].includes("change_organization_name");
-  const canDeleteOrg =
-    !!me && rolePermissions[me.role].includes("delete_organization");
-  const canAddCredits =
-    !!me && rolePermissions[me.role].includes("add_credits");
-  const isBillingHidden = config?.FEATURE_FLAGS?.HIDE_BILLING;
+  const canChangeOrgName = !!me && hasPermission("change_organization_name");
+  const canDeleteOrg = !!me && hasPermission("delete_organization");
+  const canAddCredits = !!me && hasPermission("add_credits");
+  const shouldHideBilling = isBillingHidden(
+    config,
+    hasPermission("view_billing"),
+  );
 
   return (
     <div
@@ -264,7 +249,7 @@ function ManageOrg() {
         />
       )}
 
-      {!isBillingHidden && (
+      {!shouldHideBilling && (
         <div className="flex flex-col gap-2">
           <span className="text-white text-xs font-semibold ml-1">
             {t(I18nKey.ORG$CREDITS)}
@@ -282,7 +267,7 @@ function ManageOrg() {
         </div>
       )}
 
-      {addCreditsFormVisible && !isBillingHidden && (
+      {addCreditsFormVisible && !shouldHideBilling && (
         <AddCreditsModal onClose={() => setAddCreditsFormVisible(false)} />
       )}
 
@@ -310,7 +295,7 @@ function ManageOrg() {
         </div>
       </div>
 
-      {!isBillingHidden && (
+      {!shouldHideBilling && (
         <div className="flex flex-col gap-2 w-sm">
           <span className="text-white text-xs font-semibold ml-1">
             {t(I18nKey.ORG$BILLING_INFORMATION)}

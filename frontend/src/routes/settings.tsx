@@ -8,6 +8,9 @@ import { GetConfigResponse } from "#/api/option-service/option.types";
 import { SettingsLayout } from "#/components/features/settings/settings-layout";
 import { Typography } from "#/ui/typography";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
+import { getActiveOrganizationUser } from "#/utils/org/permission-checks";
+import { rolePermissions } from "#/utils/org/permissions";
+import { isBillingHidden } from "#/utils/org/billing-visibility";
 
 const SAAS_ONLY_PATHS = [
   "/settings/user",
@@ -21,6 +24,7 @@ const SAAS_ONLY_PATHS = [
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const url = new URL(request.url);
   const { pathname } = url;
+  const user = await getActiveOrganizationUser();
 
   let config = queryClient.getQueryData<GetConfigResponse>(["config"]);
   if (!config) {
@@ -40,8 +44,14 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
     return isSaas ? redirect("/settings/user") : redirect("/settings/mcp");
   }
 
-  // If billing is hidden and user tries to access the billing page
-  if (config?.FEATURE_FLAGS?.HIDE_BILLING && pathname === "/settings/billing") {
+  if (
+    (!user ||
+      isBillingHidden(
+        config,
+        rolePermissions[user.role ?? "member"].includes("view_billing"),
+      )) &&
+    pathname === "/settings/billing"
+  ) {
     // Redirect to the first available settings page
     if (isSaas) {
       return redirect("/settings/user");

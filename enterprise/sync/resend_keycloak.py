@@ -27,6 +27,7 @@ Optional environment variables:
 
 import os
 import sys
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
@@ -42,6 +43,37 @@ from tenacity import (
 )
 
 from openhands.core.logger import openhands_logger as logger
+
+
+class RateLimiter:
+    """Thread-safe rate limiter that waits before API calls to prevent exceeding limits."""
+
+    def __init__(self, requests_per_second: float, safety_margin: float = 0.1):
+        """Initialize the rate limiter.
+
+        Args:
+            requests_per_second: Maximum allowed requests per second.
+            safety_margin: Safety margin (0.0-1.0) to stay below the limit (default: 10%).
+        """
+        effective_rate = requests_per_second * (1 - safety_margin)
+        self._min_interval = 1.0 / effective_rate
+        self._last_request_time: Optional[float] = None
+        self._lock = threading.Lock()
+
+    def wait(self) -> None:
+        """Wait if necessary to respect the rate limit. Call before each API request."""
+        with self._lock:
+            now = time.monotonic()
+            if self._last_request_time is not None:
+                elapsed = now - self._last_request_time
+                wait_time = self._min_interval - elapsed
+                if wait_time > 0:
+                    time.sleep(wait_time)
+            self._last_request_time = time.monotonic()
+
+
+# Global rate limiter for all Resend API calls
+resend_rate_limiter: Optional[RateLimiter] = None
 
 # Get Keycloak configuration from environment variables
 KEYCLOAK_SERVER_URL = os.environ.get('KEYCLOAK_SERVER_URL', '')
@@ -223,12 +255,23 @@ def add_contact_to_resend(
         if last_name:
             params['last_name'] = last_name
 
+        if resend_rate_limiter:
+            resend_rate_limiter.wait()
         return resend.Contacts.create(params)
     except Exception:
         logger.exception(f'Failed to add contact {email} to Resend')
         raise
 
 
+@retry(
+    stop=stop_after_attempt(MAX_RETRIES),
+    wait=wait_exponential(
+        multiplier=INITIAL_BACKOFF_SECONDS,
+        max=MAX_BACKOFF_SECONDS,
+        exp_base=BACKOFF_FACTOR,
+    ),
+    retry=retry_if_exception_type(ResendError),
+)
 def send_welcome_email(
     email: str,
     first_name: Optional[str] = None,
@@ -245,7 +288,7 @@ def send_welcome_email(
         The API response.
 
     Raises:
-        ResendError: If the API call fails.
+        ResendError: If the API call fails after retries.
     """
     try:
         # Prepare the recipient name
@@ -283,6 +326,8 @@ def send_welcome_email(
         }
 
         # Send the email
+        if resend_rate_limiter:
+            resend_rate_limiter.wait()
         response = resend.Emails.send(params)
         logger.info(f'Welcome email sent to {email}')
         return response
@@ -293,6 +338,8 @@ def send_welcome_email(
 
 def sync_users_to_resend():
     """Sync users from Keycloak to Resend."""
+    global resend_rate_limiter
+
     # Check required environment variables
     required_vars = {
         'RESEND_API_KEY': RESEND_API_KEY,
@@ -308,6 +355,9 @@ def sync_users_to_resend():
         for var in missing_vars:
             logger.error(f'{var} environment variable is not set')
         sys.exit(1)
+
+    # Initialize the global rate limiter
+    resend_rate_limiter = RateLimiter(RATE_LIMIT)
 
     # Log configuration (without sensitive info)
     logger.info(f'Using Keycloak server: {KEYCLOAK_SERVER_URL}')
@@ -366,9 +416,6 @@ def sync_users_to_resend():
                     logger.info(f'Added user {email} to Resend')
                     stats['added_contacts'] += 1
 
-                    # Sleep to respect rate limit after first API call
-                    time.sleep(1 / RATE_LIMIT)
-
                     # Send a welcome email to the newly added contact
                     try:
                         send_welcome_email(email, first_name, last_name)
@@ -378,9 +425,6 @@ def sync_users_to_resend():
                             f'Failed to send welcome email to {email}, but contact was added to audience'
                         )
                         # Continue with the sync process even if sending the welcome email fails
-
-                    # Sleep to respect rate limit after second API call
-                    time.sleep(1 / RATE_LIMIT)
                 except Exception:
                     logger.exception(f'Error adding user {email} to Resend')
                     stats['errors'] += 1

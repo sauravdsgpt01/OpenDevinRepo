@@ -1,3 +1,7 @@
+/**
+ * @deprecated V0 types - will be removed after full V1 migration.
+ * Use types from `types/v1/` instead.
+ */
 import { OpenHandsActionEvent } from "./base";
 import { ActionSecurityRisk } from "#/stores/security-analyzer-store";
 

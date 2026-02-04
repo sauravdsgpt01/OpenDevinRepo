@@ -1,3 +1,7 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ * Use `EventMessage` from `components/v1/chat/event-message.tsx` instead.
+ */
 import React from "react";
 import { OpenHandsAction } from "#/types/core/actions";
 import {

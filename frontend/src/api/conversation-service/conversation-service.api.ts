@@ -159,6 +159,7 @@ class ConversationService {
   }
 
   /**
+   * @deprecated V0 implementation - use V1 equivalent via unified hooks instead.
    * Get the web hosts
    * @returns Array of web hosts
    */
@@ -171,6 +172,7 @@ class ConversationService {
   }
 
   /**
+   * @deprecated V0 implementation - use `V1ConversationService.getVSCodeUrl` instead.
    * Get the VSCode URL
    * @returns VSCode URL
    */
@@ -274,6 +276,9 @@ class ConversationService {
     return data;
   }
 
+  /**
+   * @deprecated V0 implementation - use V1 resume flow instead.
+   */
   static async startConversation(
     conversationId: string,
     providers?: Provider[],
@@ -286,6 +291,9 @@ class ConversationService {
     return data;
   }
 
+  /**
+   * @deprecated V0 implementation - use `V1ConversationService.pauseConversation` instead.
+   */
   static async stopConversation(
     conversationId: string,
   ): Promise<Conversation | null> {
@@ -366,6 +374,7 @@ class ConversationService {
   }
 
   /**
+   * @deprecated V0 implementation - use `V1ConversationService.uploadFile` instead.
    * Upload multiple files to the workspace
    * @param conversationId ID of the conversation
    * @param files List of files.

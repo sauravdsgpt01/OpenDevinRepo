@@ -1,4 +1,9 @@
-/** Variances are types which do not conform to the current event pattern */
+/**
+ * @deprecated V0 types - will be removed after full V1 migration.
+ * Use types from `types/v1/` instead.
+ *
+ * Variances are types which do not conform to the current event pattern
+ */
 
 export interface TokenConfigSuccess {
   status: "ok" | number;

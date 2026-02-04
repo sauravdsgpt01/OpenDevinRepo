@@ -1,3 +1,7 @@
+/**
+ * @deprecated V0 types - will be removed after full V1 migration.
+ * Use types from `types/v1/` instead.
+ */
 import { AgentState } from "../agent-state";
 import { OpenHandsObservationEvent } from "./base";
 

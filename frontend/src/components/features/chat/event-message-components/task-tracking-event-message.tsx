@@ -1,3 +1,6 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ */
 import { OpenHandsObservation } from "#/types/core/observations";
 import { isTaskTrackingObservation } from "#/types/core/guards";
 import { TaskTrackingObservationContent } from "../task-tracking-observation-content";

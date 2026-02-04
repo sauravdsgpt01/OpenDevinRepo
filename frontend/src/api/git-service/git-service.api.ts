@@ -226,6 +226,7 @@ class GitService {
   }
 
   /**
+   * @deprecated V0 implementation - use `V1GitService.getGitChanges` instead.
    * Get git changes for a conversation
    * @param conversationId The conversation ID
    * @returns List of git changes
@@ -239,6 +240,7 @@ class GitService {
   }
 
   /**
+   * @deprecated V0 implementation - use `V1GitService.getGitChangeDiff` instead.
    * Get git change diff for a specific file
    * @param conversationId The conversation ID
    * @param path The file path

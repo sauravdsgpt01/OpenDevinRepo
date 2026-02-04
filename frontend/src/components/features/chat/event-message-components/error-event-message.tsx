@@ -1,3 +1,6 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ */
 import React from "react";
 import { OpenHandsObservation } from "#/types/core/observations";
 import { isErrorObservation } from "#/types/core/guards";

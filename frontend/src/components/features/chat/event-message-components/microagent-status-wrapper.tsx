@@ -1,3 +1,6 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ */
 import React from "react";
 import { MicroagentStatus } from "#/types/microagent-status";
 import { MicroagentStatusIndicator } from "../microagent/microagent-status-indicator";

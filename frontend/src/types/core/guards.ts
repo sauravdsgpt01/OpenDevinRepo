@@ -1,3 +1,7 @@
+/**
+ * @deprecated V0 type guards - will be removed after full V1 migration.
+ * Use type guards from `types/v1/type-guards.ts` instead.
+ */
 import { OpenHandsParsedEvent } from ".";
 import {
   UserMessageAction,

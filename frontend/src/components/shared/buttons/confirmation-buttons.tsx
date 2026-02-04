@@ -1,3 +1,7 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ * Use `V1ConfirmationButtons` from `v1-confirmation-buttons.tsx` instead.
+ */
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";

@@ -1,3 +1,7 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ * This hook handles WebSocket events for legacy V0 conversations only.
+ */
 import React from "react";
 import { useWsClient } from "#/context/ws-client-provider";
 import { generateAgentStateChangeEvent } from "#/services/agent-state-service";

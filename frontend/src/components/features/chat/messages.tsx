@@ -1,3 +1,7 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ * Use `Messages` from `components/v1/chat/messages.tsx` instead.
+ */
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";

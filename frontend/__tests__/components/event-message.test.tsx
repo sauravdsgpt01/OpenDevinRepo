@@ -1,3 +1,6 @@
+/**
+ * @deprecated V0 test - will be removed after full V1 migration.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithProviders } from "test-utils";

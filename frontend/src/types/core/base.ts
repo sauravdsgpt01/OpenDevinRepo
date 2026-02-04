@@ -1,3 +1,8 @@
+/**
+ * @deprecated V0 types - will be removed after full V1 migration.
+ * Use types from `types/v1/` instead.
+ */
+
 export type OpenHandsEventType =
   | "message"
   | "system"

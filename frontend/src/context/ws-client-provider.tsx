@@ -1,3 +1,8 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ * Use `ConversationWebSocketProvider` from `contexts/conversation-websocket-context.tsx` instead.
+ * This provider is for legacy V0 conversations only.
+ */
 import React from "react";
 import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";

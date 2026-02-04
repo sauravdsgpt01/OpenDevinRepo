@@ -1,3 +1,6 @@
+/**
+ * @deprecated V0 implementation - will be removed after full V1 migration.
+ */
 import React from "react";
 import { OpenHandsAction } from "#/types/core/actions";
 import { isFinishAction } from "#/types/core/guards";

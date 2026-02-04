@@ -168,6 +168,7 @@ describe("MainApp", () => {
       AUTH_URL: "https://auth.example.com",
       FEATURE_FLAGS: {
         ENABLE_BILLING: false,
+        HIDE_BILLING: false,
         HIDE_LLM_SETTINGS: false,
         ENABLE_JIRA: false,
         ENABLE_JIRA_DC: false,

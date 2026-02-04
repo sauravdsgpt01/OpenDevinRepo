@@ -1,12 +1,12 @@
-// Test utilities for React components
-
 import React, { PropsWithChildren } from "react";
-import { RenderOptions, render } from "@testing-library/react";
+import { RenderOptions, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import i18n from "i18next";
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 import { AxiosError } from "axios";
+import userEvent from "@testing-library/user-event";
+import { INITIAL_MOCK_ORGS } from "#/mocks/org-handlers";
 import {
   ActionEvent,
   MessageEvent,
@@ -26,6 +26,9 @@ vi.mock("react-router", async () => {
   return {
     ...actual,
     useParams: useParamsMock,
+    useRevalidator: () => ({
+      revalidate: vi.fn(),
+    }),
   };
 });
 
@@ -85,6 +88,27 @@ export const createAxiosNotFoundErrorObject = () =>
       config: {},
     },
   );
+
+export const selectOrganization = async ({
+  orgIndex,
+}: {
+  orgIndex: number;
+}) => {
+  const organizationSelect = await screen.findByTestId("org-select");
+  expect(organizationSelect).toBeInTheDocument();
+
+  await userEvent.click(organizationSelect);
+
+  // Wait for the options to appear in the popover
+  const targetOrg = INITIAL_MOCK_ORGS[orgIndex];
+  if (!targetOrg) {
+    expect.fail(`No organization found at index ${orgIndex}`);
+  }
+
+  // Find the option by its text content (organization name)
+  const option = await screen.findByText(targetOrg.name);
+  await userEvent.click(option);
+};
 
 export const createAxiosError = (
   status: number,

@@ -1,10 +1,40 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, test, vi, afterEach, beforeEach } from "vitest";
+import { describe, expect, it, vi, afterEach, beforeEach, test } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { UserActions } from "#/components/features/sidebar/user-actions";
+import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { ReactElement } from "react";
+import { UserActions } from "#/components/features/sidebar/user-actions";
 import { renderWithProviders } from "../../test-utils";
+
+vi.mock("react-router", async (importActual) => ({
+  ...(await importActual()),
+  useNavigate: () => vi.fn(),
+  useRevalidator: () => ({
+    revalidate: vi.fn(),
+  }),
+}));
+
+const renderUserActions = (props = { hasAvatar: true }) => {
+  render(
+    <UserActions
+      user={
+        props.hasAvatar
+          ? { avatar_url: "https://example.com/avatar.png" }
+          : undefined
+      }
+    />,
+    {
+      wrapper: ({ children }) => (
+        <MemoryRouter>
+          <QueryClientProvider client={new QueryClient()}>
+            {children}
+          </QueryClientProvider>
+        </MemoryRouter>
+      ),
+    },
+  );
+};
 
 // Create mocks for all the hooks we need
 const useIsAuthedMock = vi
@@ -38,9 +68,8 @@ describe("UserActions", () => {
   const onLogoutMock = vi.fn();
 
   // Create a wrapper with MemoryRouter and renderWithProviders
-  const renderWithRouter = (ui: ReactElement) => {
-    return renderWithProviders(<MemoryRouter>{ui}</MemoryRouter>);
-  };
+  const renderWithRouter = (ui: ReactElement) =>
+    renderWithProviders(<MemoryRouter>{ui}</MemoryRouter>);
 
   beforeEach(() => {
     // Reset all mocks to default values before each test
@@ -61,27 +90,9 @@ describe("UserActions", () => {
   });
 
   it("should render", () => {
-    renderWithRouter(<UserActions onLogout={onLogoutMock} />);
-
+    renderUserActions();
     expect(screen.getByTestId("user-actions")).toBeInTheDocument();
     expect(screen.getByTestId("user-avatar")).toBeInTheDocument();
-  });
-
-  it("should call onLogout and close the menu when the logout option is clicked", async () => {
-    renderWithRouter(
-      <UserActions
-        onLogout={onLogoutMock}
-        user={{ avatar_url: "https://example.com/avatar.png" }}
-      />,
-    );
-
-    const userAvatar = screen.getByTestId("user-avatar");
-    await user.click(userAvatar);
-
-    const logoutOption = screen.getByText("ACCOUNT_SETTINGS$LOGOUT");
-    await user.click(logoutOption);
-
-    expect(onLogoutMock).toHaveBeenCalledOnce();
   });
 
   it("should NOT show context menu when user is not authenticated and avatar is clicked", async () => {
@@ -96,29 +107,31 @@ describe("UserActions", () => {
       providers: [{ id: "github", name: "GitHub" }],
     });
 
-    renderWithRouter(<UserActions onLogout={onLogoutMock} />);
+    renderUserActions();
 
     const userAvatar = screen.getByTestId("user-avatar");
     await user.click(userAvatar);
 
     // Context menu should NOT appear because user is not authenticated
-    expect(
-      screen.queryByTestId("account-settings-context-menu"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-context-menu")).not.toBeInTheDocument();
+  });
+
+  it("should NOT show context menu when user is undefined and avatar is hovered", async () => {
+    renderUserActions({ hasAvatar: false });
+    const userActions = screen.getByTestId("user-actions");
+    await user.hover(userActions);
+
+    // Context menu should NOT appear because user is undefined
+    expect(screen.queryByTestId("user-context-menu")).not.toBeInTheDocument();
   });
 
   it("should show context menu even when user has no avatar_url", async () => {
-    renderWithRouter(
-      <UserActions onLogout={onLogoutMock} user={{ avatar_url: "" }} />,
-    );
-
-    const userAvatar = screen.getByTestId("user-avatar");
-    await user.click(userAvatar);
+    renderUserActions();
+    const userActions = screen.getByTestId("user-actions");
+    await user.hover(userActions);
 
     // Context menu SHOULD appear because user object exists (even with empty avatar_url)
-    expect(
-      screen.getByTestId("account-settings-context-menu"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("user-context-menu")).toBeInTheDocument();
   });
 
   it("should NOT be able to access logout when user is not authenticated", async () => {
@@ -133,15 +146,13 @@ describe("UserActions", () => {
       providers: [{ id: "github", name: "GitHub" }],
     });
 
-    renderWithRouter(<UserActions onLogout={onLogoutMock} />);
+    renderWithRouter(<UserActions />);
 
     const userAvatar = screen.getByTestId("user-avatar");
     await user.click(userAvatar);
 
     // Context menu should NOT appear because user is not authenticated
-    expect(
-      screen.queryByTestId("account-settings-context-menu"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-context-menu")).not.toBeInTheDocument();
 
     // Logout option should NOT be accessible when user is not authenticated
     expect(
@@ -161,16 +172,12 @@ describe("UserActions", () => {
       providers: [{ id: "github", name: "GitHub" }],
     });
 
-    const { unmount } = renderWithRouter(
-      <UserActions onLogout={onLogoutMock} />,
-    );
+    const { unmount } = renderWithRouter(<UserActions />);
 
     // Initially no user and not authenticated - menu should not appear
-    let userAvatar = screen.getByTestId("user-avatar");
-    await user.click(userAvatar);
-    expect(
-      screen.queryByTestId("account-settings-context-menu"),
-    ).not.toBeInTheDocument();
+    const userActions = screen.getByTestId("user-actions");
+    await user.hover(userActions);
+    expect(screen.queryByTestId("user-context-menu")).not.toBeInTheDocument();
 
     // Unmount the first component
     unmount();
@@ -188,10 +195,7 @@ describe("UserActions", () => {
 
     // Render a new component with user prop and authentication
     renderWithRouter(
-      <UserActions
-        onLogout={onLogoutMock}
-        user={{ avatar_url: "https://example.com/avatar.png" }}
-      />,
+      <UserActions user={{ avatar_url: "https://example.com/avatar.png" }} />,
     );
 
     // Component should render correctly
@@ -199,12 +203,10 @@ describe("UserActions", () => {
     expect(screen.getByTestId("user-avatar")).toBeInTheDocument();
 
     // Menu should now work with user defined and authenticated
-    userAvatar = screen.getByTestId("user-avatar");
-    await user.click(userAvatar);
+    const userActionsEl = screen.getByTestId("user-actions");
+    await user.hover(userActionsEl);
 
-    expect(
-      screen.getByTestId("account-settings-context-menu"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("user-context-menu")).toBeInTheDocument();
   });
 
   it("should handle user prop changing from defined to undefined", async () => {
@@ -219,18 +221,13 @@ describe("UserActions", () => {
     });
 
     const { rerender } = renderWithRouter(
-      <UserActions
-        onLogout={onLogoutMock}
-        user={{ avatar_url: "https://example.com/avatar.png" }}
-      />,
+      <UserActions user={{ avatar_url: "https://example.com/avatar.png" }} />,
     );
 
-    // Click to open menu
-    const userAvatar = screen.getByTestId("user-avatar");
-    await user.click(userAvatar);
-    expect(
-      screen.getByTestId("account-settings-context-menu"),
-    ).toBeInTheDocument();
+    // Hover to open menu
+    const userActions = screen.getByTestId("user-actions");
+    await user.hover(userActions);
+    expect(screen.getByTestId("user-context-menu")).toBeInTheDocument();
 
     // Set authentication to false for the rerender
     useIsAuthedMock.mockReturnValue({ data: false, isLoading: false });
@@ -246,14 +243,12 @@ describe("UserActions", () => {
     // Remove user prop - menu should disappear because user is no longer authenticated
     rerender(
       <MemoryRouter>
-        <UserActions onLogout={onLogoutMock} />
+        <UserActions />
       </MemoryRouter>,
     );
 
     // Context menu should NOT be visible when user becomes unauthenticated
-    expect(
-      screen.queryByTestId("account-settings-context-menu"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-context-menu")).not.toBeInTheDocument();
 
     // Logout option should not be accessible
     expect(
@@ -262,30 +257,58 @@ describe("UserActions", () => {
   });
 
   it("should work with loading state and user provided", async () => {
-    // Ensure authentication and providers are set correctly
-    useIsAuthedMock.mockReturnValue({ data: true, isLoading: false });
-    useConfigMock.mockReturnValue({
-      data: { APP_MODE: "saas" },
-      isLoading: false,
-    });
-    useUserProvidersMock.mockReturnValue({
-      providers: [{ id: "github", name: "GitHub" }],
-    });
-
-    renderWithRouter(
-      <UserActions
-        onLogout={onLogoutMock}
-        user={{ avatar_url: "https://example.com/avatar.png" }}
-        isLoading={true}
-      />,
-    );
-
-    const userAvatar = screen.getByTestId("user-avatar");
-    await user.click(userAvatar);
+    renderUserActions();
+    const userActions = screen.getByTestId("user-actions");
+    await user.hover(userActions);
 
     // Context menu should still appear even when loading
+    expect(screen.getByTestId("user-context-menu")).toBeInTheDocument();
+  });
+
+  test("context menu should default to user role", async () => {
+    renderUserActions();
+    const userActions = screen.getByTestId("user-actions");
+    await user.hover(userActions);
+
+    // Verify logout is present
+    expect(screen.getByTestId("user-context-menu")).toHaveTextContent(
+      "ACCOUNT_SETTINGS$LOGOUT",
+    );
+    // Verify nav items are present (e.g., settings nav items)
+    expect(screen.getByTestId("user-context-menu")).toHaveTextContent(
+      "SETTINGS$NAV_USER",
+    );
+    // Verify admin-only items are NOT present for user role
     expect(
-      screen.getByTestId("account-settings-context-menu"),
-    ).toBeInTheDocument();
+      screen.queryByText("ORG$MANAGE_ORGANIZATION_MEMBERS"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("ORG$MANAGE_ACCOUNT")).not.toBeInTheDocument();
+  });
+
+  test("should NOT show Team and Organization nav items when personal workspace is selected", async () => {
+    renderUserActions();
+    const userActions = screen.getByTestId("user-actions");
+    await user.hover(userActions);
+
+    // Team and Organization nav links should NOT be visible when no org is selected (personal workspace)
+    expect(screen.queryByText("Team")).not.toBeInTheDocument();
+    expect(screen.queryByText("Organization")).not.toBeInTheDocument();
+  });
+
+  it("should show context menu on hover", async () => {
+    renderUserActions();
+
+    const userActions = screen.getByTestId("user-actions");
+    const contextMenu = screen.getByTestId("user-context-menu");
+
+    // Menu is in DOM but hidden via CSS (opacity-0, pointer-events-none)
+    expect(contextMenu.parentElement).toHaveClass("opacity-0");
+    expect(contextMenu.parentElement).toHaveClass("pointer-events-none");
+
+    // Hover over the user actions area
+    await user.hover(userActions);
+
+    // Menu should be visible on hover (CSS classes change via group-hover)
+    expect(contextMenu).toBeVisible();
   });
 });

@@ -94,6 +94,7 @@ describe("LoginPage", () => {
       PROVIDERS_CONFIGURED: ["github", "gitlab", "bitbucket"],
       AUTH_URL: "https://auth.example.com",
       FEATURE_FLAGS: {
+        HIDE_BILLING: false,
         ENABLE_BILLING: false,
         HIDE_LLM_SETTINGS: false,
         ENABLE_JIRA: false,
@@ -158,6 +159,7 @@ describe("LoginPage", () => {
         PROVIDERS_CONFIGURED: ["github"],
         AUTH_URL: "https://auth.example.com",
         FEATURE_FLAGS: {
+          HIDE_BILLING: false,
           ENABLE_BILLING: false,
           HIDE_LLM_SETTINGS: false,
           ENABLE_JIRA: false,
@@ -194,6 +196,7 @@ describe("LoginPage", () => {
         PROVIDERS_CONFIGURED: [],
         AUTH_URL: "https://auth.example.com",
         FEATURE_FLAGS: {
+          HIDE_BILLING: false,
           ENABLE_BILLING: false,
           HIDE_LLM_SETTINGS: false,
           ENABLE_JIRA: false,
@@ -325,6 +328,7 @@ describe("LoginPage", () => {
         GITHUB_CLIENT_ID: "test-client-id",
         POSTHOG_CLIENT_KEY: "test-posthog-key",
         FEATURE_FLAGS: {
+          HIDE_BILLING: false,
           ENABLE_BILLING: false,
           HIDE_LLM_SETTINGS: false,
           ENABLE_JIRA: false,

@@ -136,6 +136,7 @@ describe("frontend/routes/_oh", () => {
       FEATURE_FLAGS: {
         ENABLE_BILLING: false,
         HIDE_LLM_SETTINGS: false,
+        HIDE_BILLING: false,
         ENABLE_JIRA: false,
         ENABLE_JIRA_DC: false,
         ENABLE_LINEAR: false,
@@ -174,6 +175,7 @@ describe("frontend/routes/_oh", () => {
       FEATURE_FLAGS: {
         ENABLE_BILLING: false,
         HIDE_LLM_SETTINGS: false,
+        HIDE_BILLING: false,
         ENABLE_JIRA: false,
         ENABLE_JIRA_DC: false,
         ENABLE_LINEAR: false,
@@ -262,6 +264,7 @@ describe("frontend/routes/_oh", () => {
       FEATURE_FLAGS: {
         ENABLE_BILLING: false,
         HIDE_LLM_SETTINGS: false,
+        HIDE_BILLING: false,
         ENABLE_JIRA: false,
         ENABLE_JIRA_DC: false,
         ENABLE_LINEAR: false,

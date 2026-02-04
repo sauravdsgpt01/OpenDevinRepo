@@ -36,7 +36,8 @@ test("avatar context menu stays open when moving cursor diagonally to menu", asy
   // intercept clicks when the mouse triggers group-hover state
   await userAvatar.click({ force: true });
 
-  const contextMenu = page.getByTestId("account-settings-context-menu");
+  // The context menu should appear via CSS group-hover
+  const contextMenu = page.getByTestId("user-context-menu");
   await expect(contextMenu).toBeVisible();
 
   const menuWrapper = contextMenu.locator("..");

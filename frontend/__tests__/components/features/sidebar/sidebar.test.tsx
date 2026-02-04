@@ -23,6 +23,7 @@ const createMockConfig = (
     GITHUB_CLIENT_ID: "test-client-id",
     POSTHOG_CLIENT_KEY: "test-posthog-key",
     FEATURE_FLAGS: {
+      HIDE_BILLING: false,
       ENABLE_BILLING: false,
       HIDE_LLM_SETTINGS: false,
       ENABLE_JIRA: false,

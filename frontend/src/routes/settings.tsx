@@ -14,6 +14,8 @@ const SAAS_ONLY_PATHS = [
   "/settings/billing",
   "/settings/credits",
   "/settings/api-keys",
+  "/settings/team",
+  "/settings/org",
 ];
 
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
@@ -36,6 +38,15 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   if (config?.FEATURE_FLAGS?.HIDE_LLM_SETTINGS && pathname === "/settings") {
     // Redirect to the first available settings page
     return isSaas ? redirect("/settings/user") : redirect("/settings/mcp");
+  }
+
+  // If billing is hidden and user tries to access the billing page
+  if (config?.FEATURE_FLAGS?.HIDE_BILLING && pathname === "/settings/billing") {
+    // Redirect to the first available settings page
+    if (isSaas) {
+      return redirect("/settings/user");
+    }
+    return redirect("/settings/mcp");
   }
 
   return null;

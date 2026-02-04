@@ -12,10 +12,12 @@ import OptionService from "#/api/option-service/option-service.api";
 import AuthService from "#/api/auth-service/auth-service.api";
 import MainApp from "#/routes/root-layout";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
+import { GetConfigResponse } from "#/api/option-service/option.types";
 
 const { DEFAULT_FEATURE_FLAGS, useIsAuthedMock, useConfigMock } = vi.hoisted(
   () => {
-    const defaultFeatureFlags = {
+    const defaultFeatureFlags: GetConfigResponse["FEATURE_FLAGS"] = {
+      HIDE_BILLING: false,
       ENABLE_BILLING: false,
       HIDE_LLM_SETTINGS: false,
       ENABLE_JIRA: false,

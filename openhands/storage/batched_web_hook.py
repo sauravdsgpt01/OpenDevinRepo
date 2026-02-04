@@ -83,15 +83,20 @@ class BatchedWebHookFileStore(FileStore):
         self._batch_timer = None
         self._batch_size = 0
 
-    def write(self, path: str, contents: str | bytes) -> None:
+    def write(self, path: str, contents: str | bytes, public: bool = False) -> None:
         """Write contents to a file and queue a webhook update.
 
         Args:
             path: The path to write to
             contents: The contents to write
+            public: If True, make the file publicly accessible (passed to underlying store)
         """
-        self.file_store.write(path, contents)
+        self.file_store.write(path, contents, public=public)
         self._queue_update(path, 'write', contents)
+
+    def get_public_url(self, path: str) -> str | None:
+        """Get the public URL for a file from the underlying store."""
+        return self.file_store.get_public_url(path)
 
     def read(self, path: str) -> str:
         """Read contents from a file.

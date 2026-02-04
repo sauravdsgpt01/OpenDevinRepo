@@ -18,14 +18,26 @@ class GoogleCloudFileStore(FileStore):
         """
         if bucket_name is None:
             bucket_name = os.environ['GOOGLE_CLOUD_BUCKET_NAME']
+        self.bucket_name = bucket_name
         self.storage_client: Client = storage.Client()
         self.bucket: Bucket = self.storage_client.bucket(bucket_name)
 
-    def write(self, path: str, contents: str | bytes) -> None:
+    def write(self, path: str, contents: str | bytes, public: bool = False) -> None:
         blob: Blob = self.bucket.blob(path)
         mode = 'wb' if isinstance(contents, bytes) else 'w'
         with blob.open(mode) as f:
             f.write(contents)
+
+        if public:
+            blob.make_public()
+
+    def get_public_url(self, path: str) -> str | None:
+        """Get the public URL for a blob.
+
+        Note: This URL will only be accessible if the blob was written with public=True
+        or if the bucket has uniform public access configured.
+        """
+        return f'https://storage.googleapis.com/{self.bucket_name}/{path}'
 
     def read(self, path: str) -> str:
         blob: Blob = self.bucket.blob(path)

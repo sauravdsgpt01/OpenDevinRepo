@@ -23,8 +23,9 @@ class S3FileStore(FileStore):
     def __init__(self, bucket_name: str | None) -> None:
         access_key = os.getenv('AWS_ACCESS_KEY_ID')
         secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        secure = os.getenv('AWS_S3_SECURE', 'true').lower() == 'true'
-        endpoint = self._ensure_url_scheme(secure, os.getenv('AWS_S3_ENDPOINT'))
+        self.secure = os.getenv('AWS_S3_SECURE', 'true').lower() == 'true'
+        self.endpoint = self._ensure_url_scheme(self.secure, os.getenv('AWS_S3_ENDPOINT'))
+        self.region = os.getenv('AWS_REGION', 'us-east-1')
         if bucket_name is None:
             bucket_name = os.environ['AWS_S3_BUCKET']
         self.bucket: str = bucket_name
@@ -32,16 +33,23 @@ class S3FileStore(FileStore):
             's3',
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            endpoint_url=endpoint,
-            use_ssl=secure,
+            endpoint_url=self.endpoint,
+            use_ssl=self.secure,
+            region_name=self.region,
         )
 
-    def write(self, path: str, contents: str | bytes) -> None:
+    def write(self, path: str, contents: str | bytes, public: bool = False) -> None:
         try:
             as_bytes = (
                 contents.encode('utf-8') if isinstance(contents, str) else contents
             )
-            self.client.put_object(Bucket=self.bucket, Key=path, Body=as_bytes)
+            extra_args: dict[str, Any] = {}
+            if public:
+                extra_args['ACL'] = 'public-read'
+
+            self.client.put_object(
+                Bucket=self.bucket, Key=path, Body=as_bytes, **extra_args
+            )
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'AccessDenied':
                 raise FileNotFoundError(
@@ -54,6 +62,19 @@ class S3FileStore(FileStore):
             raise FileNotFoundError(
                 f"Error: Failed to write to bucket '{self.bucket}' at path {path}: {e}"
             )
+
+    def get_public_url(self, path: str) -> str | None:
+        """Get the public URL for an S3 object.
+
+        Note: This URL will only be accessible if the object was written with public=True
+        or if the bucket has a public access policy.
+        """
+        if self.endpoint:
+            # Custom endpoint (e.g., MinIO, LocalStack)
+            return f'{self.endpoint}/{self.bucket}/{path}'
+        else:
+            # Standard AWS S3 URL
+            return f'https://{self.bucket}.s3.{self.region}.amazonaws.com/{path}'
 
     def read(self, path: str) -> str:
         try:

@@ -1,5 +1,7 @@
+import base64
 import os
 import re
+import uuid
 from typing import Annotated
 
 from fastmcp import FastMCP
@@ -16,7 +18,7 @@ from openhands.integrations.github.github_service import GithubServiceImpl
 from openhands.integrations.gitlab.gitlab_service import GitLabServiceImpl
 from openhands.integrations.provider import ProviderToken
 from openhands.integrations.service_types import GitService, ProviderType
-from openhands.server.shared import ConversationStoreImpl, config, server_config
+from openhands.server.shared import ConversationStoreImpl, config, file_store, server_config
 from openhands.server.types import AppMode
 from openhands.server.user_auth import (
     get_access_token,
@@ -24,6 +26,7 @@ from openhands.server.user_auth import (
     get_user_id,
 )
 from openhands.storage.data_models.conversation_metadata import ConversationMetadata
+from openhands.storage.locations import get_conversation_dir
 
 mcp_server = FastMCP('mcp', mask_error_details=True)
 
@@ -354,3 +357,121 @@ async def create_azure_devops_pr(
         raise ToolError(str(error))
 
     return response
+
+
+ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+
+
+def get_image_extension(filename: str | None, content_type: str | None) -> str:
+    """Determine the image file extension from filename or content type."""
+    if filename:
+        _, ext = os.path.splitext(filename.lower())
+        if ext in ALLOWED_IMAGE_EXTENSIONS:
+            return ext
+
+    content_type_map = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+        'image/bmp': '.bmp',
+        'image/svg+xml': '.svg',
+    }
+    if content_type and content_type in content_type_map:
+        return content_type_map[content_type]
+
+    return '.png'
+
+
+@mcp_server.tool()
+async def upload_image(
+    image_data: Annotated[
+        str,
+        Field(
+            description='Base64-encoded image data. Can include data URI prefix (e.g., "data:image/png;base64,...") or be raw base64.'
+        ),
+    ],
+    filename: Annotated[
+        str | None,
+        Field(
+            description='Optional filename for the image. If not provided, a unique filename will be generated.'
+        ),
+    ] = None,
+    content_type: Annotated[
+        str | None,
+        Field(
+            description='Optional MIME type of the image (e.g., "image/png", "image/jpeg"). Used to determine file extension if filename is not provided.'
+        ),
+    ] = None,
+) -> str:
+    """Upload an image to the conversation's image storage.
+
+    This tool accepts a base64-encoded image and stores it in the conversation's
+    images directory. The image is made publicly accessible and the public URL
+    is returned if the storage backend supports it, otherwise the file path is returned.
+    """
+    logger.info('Calling OpenHands MCP upload_image')
+
+    request = get_http_request()
+    headers = request.headers
+    conversation_id = headers.get('X-OpenHands-ServerConversation-ID', None)
+    user_id = await get_user_id(request)
+
+    if not conversation_id:
+        raise ToolError('Conversation ID is required to upload images')
+
+    try:
+        # Handle data URI format (e.g., "data:image/png;base64,...")
+        if image_data.startswith('data:'):
+            # Extract content type from data URI if not provided
+            header_end = image_data.find(',')
+            if header_end != -1:
+                header = image_data[:header_end]
+                if not content_type and 'image/' in header:
+                    # Extract content type from header like "data:image/png;base64"
+                    ct_start = header.find('image/')
+                    ct_end = header.find(';', ct_start)
+                    if ct_end == -1:
+                        ct_end = len(header)
+                    content_type = header[ct_start:ct_end]
+                image_data = image_data[header_end + 1:]
+
+        # Decode base64 image data
+        try:
+            image_bytes = base64.b64decode(image_data)
+        except Exception as e:
+            raise ToolError(f'Invalid base64 image data: {e}')
+
+        # Determine file extension
+        extension = get_image_extension(filename, content_type)
+
+        # Generate filename if not provided
+        if filename:
+            # Ensure the filename has the correct extension
+            base_name, _ = os.path.splitext(filename)
+            safe_filename = f'{base_name}{extension}'
+        else:
+            safe_filename = f'{uuid.uuid4().hex}{extension}'
+
+        # Build the image path within the conversation directory
+        conversation_dir = get_conversation_dir(conversation_id, user_id)
+        image_path = f'{conversation_dir}images/{safe_filename}'
+
+        # Write the image to the file store (always public)
+        file_store.write(image_path, image_bytes, public=True)
+
+        logger.info(f'Image uploaded successfully: {image_path}')
+
+        # Return public URL if available, otherwise return the path
+        public_url = file_store.get_public_url(image_path)
+        if public_url:
+            return public_url
+
+        return image_path
+
+    except ToolError:
+        raise
+    except Exception as e:
+        error = f'Error uploading image: {e}'
+        logger.error(error)
+        raise ToolError(error)

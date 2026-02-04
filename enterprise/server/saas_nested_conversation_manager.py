@@ -217,15 +217,19 @@ class SaasNestedConversationManager(ConversationManager):
             status = ConversationStatus.STARTING
 
         if status is ConversationStatus.STOPPED:
-            # Mark the agentloop as starting in redis
-            await redis.set(key, 1, ex=_REDIS_ENTRY_TIMEOUT_SECONDS)
+            # Atomically set the key only if it doesn't exist (SETNX)
+            # This prevents race conditions where multiple callers try to start the agent loop
+            was_set = await redis.set(key, 1, ex=_REDIS_ENTRY_TIMEOUT_SECONDS, nx=True)
 
-            # Start the agent loop in the background
-            asyncio.create_task(
-                self._start_agent_loop(
-                    sid, settings, user_id, initial_user_msg, replay_json
+            # Only start the agent loop if we successfully set the key
+            if was_set:
+                asyncio.create_task(
+                    self._start_agent_loop(
+                        sid, settings, user_id, initial_user_msg, replay_json
+                    )
                 )
-            )
+            # If was_set is False, another caller already set the key and is starting the loop
+            status = ConversationStatus.STARTING
 
         return AgentLoopInfo(
             conversation_id=sid,

@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from integrations.models import Message
 from integrations.resolver_context import ResolverUserContext
+from integrations.slack.runtime_wait_tracker import track_runtime_wait
 from integrations.slack.slack_types import SlackViewInterface, StartingConvoException
 from integrations.slack.slack_v1_callback_processor import SlackV1CallbackProcessor
 from integrations.utils import (
@@ -385,21 +386,18 @@ class SlackUpdateExistingConversationView(SlackNewConversationView):
         )
 
         # Either join ongoing conversation, or restart the conversation
-        agent_loop_info = await conversation_manager.maybe_start_agent_loop(
+        # If runtime is stopped, this will start it in the background
+        _agent_loop_info = await conversation_manager.maybe_start_agent_loop(
             self.conversation_id, conversation_init_data, user_id
         )
 
-        final_agent_observation = get_final_agent_observation(
-            agent_loop_info.event_store
-        )
-        agent_state = (
-            None
-            if len(final_agent_observation) == 0
-            else final_agent_observation[0].agent_state
-        )
-
-        if not agent_state or agent_state == AgentState.LOADING:
-            raise StartingConvoException('Conversation is still starting')
+        # Wait for the runtime to be ready before sending the message
+        # Slack is asynchronous, so we can afford to wait
+        # Track this wait operation for metrics
+        async with track_runtime_wait():
+            await self._wait_for_runtime_ready(
+                user_id, conversation_init_data, providers_set
+            )
 
         instructions, _ = self._get_instructions(jinja)
         user_msg = MessageAction(content=instructions)
@@ -519,6 +517,54 @@ class SlackUpdateExistingConversationView(SlackNewConversationView):
             await self.send_message_to_v0_conversation(jinja)
 
         return self.conversation_id
+
+    async def _wait_for_runtime_ready(
+        self,
+        user_id: str,
+        conversation_init_data,
+        providers_set: list[ProviderType],
+        max_wait_seconds: int = 120,
+        poll_interval_seconds: float = 2.0,
+    ):
+        """Wait for the runtime to be ready before sending a message.
+
+        Since Slack is asynchronous, we can wait for the runtime to come up
+        rather than returning an error to the user.
+        """
+        import asyncio
+
+        from openhands.storage.data_models.conversation_status import ConversationStatus
+
+        start_time = asyncio.get_event_loop().time()
+
+        while True:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= max_wait_seconds:
+                raise StartingConvoException(
+                    'The conversation is taking too long to start. Please try again later.'
+                )
+
+            agent_loop_info = await conversation_manager.maybe_start_agent_loop(
+                self.conversation_id, conversation_init_data, user_id
+            )
+
+            # Check if runtime is running
+            if agent_loop_info.status == ConversationStatus.RUNNING:
+                # Also verify agent state is ready
+                final_agent_observation = get_final_agent_observation(
+                    agent_loop_info.event_store
+                )
+                agent_state = (
+                    None
+                    if len(final_agent_observation) == 0
+                    else final_agent_observation[0].agent_state
+                )
+
+                if agent_state and agent_state != AgentState.LOADING:
+                    return  # Runtime is ready
+
+            # Wait before polling again
+            await asyncio.sleep(poll_interval_seconds)
 
     def get_response_msg(self):
         user_info: SlackUser = self.slack_to_openhands_user

@@ -339,3 +339,286 @@ class TestPausedSandboxResumption:
         mock_sandbox_service.resume_sandbox.assert_called_once_with('sandbox-123')
         mock_httpx_client.post.assert_called_once()
         mock_response.raise_for_status.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Test 4: Runtime Ready Wait Logic for V0 Conversations
+# ---------------------------------------------------------------------------
+
+
+class TestRuntimeReadyWait:
+    """Test the _wait_for_runtime_ready method behavior for V0 conversations.
+
+    This tests the fix for issue #12325 where follow-up messages would fail
+    when the runtime was not yet ready (LOADING state).
+    """
+
+    @patch('integrations.slack.slack_view.conversation_manager')
+    @patch('integrations.slack.slack_view.get_final_agent_observation')
+    async def test_wait_for_runtime_ready_immediate_success(
+        self,
+        mock_get_final_agent_observation,
+        mock_conversation_manager,
+        slack_update_conversation_view_v0,
+    ):
+        """Test that _wait_for_runtime_ready returns immediately when runtime is ready."""
+        from openhands.core.schema.agent import AgentState
+        from openhands.storage.data_models.conversation_status import ConversationStatus
+
+        # Setup: Runtime is already running with RUNNING agent state
+        mock_agent_loop_info = MagicMock()
+        mock_agent_loop_info.status = ConversationStatus.RUNNING
+        mock_agent_loop_info.event_store = MagicMock()
+        mock_conversation_manager.maybe_start_agent_loop = AsyncMock(
+            return_value=mock_agent_loop_info
+        )
+
+        mock_observation = MagicMock()
+        mock_observation.agent_state = AgentState.RUNNING
+        mock_get_final_agent_observation.return_value = [mock_observation]
+
+        # Execute
+        await slack_update_conversation_view_v0._wait_for_runtime_ready(
+            user_id='test-user-123',
+            conversation_init_data=MagicMock(),
+            providers_set=[],
+        )
+
+        # Verify: Should only call maybe_start_agent_loop once (no polling needed)
+        assert mock_conversation_manager.maybe_start_agent_loop.call_count == 1
+
+    @patch('integrations.slack.slack_view.conversation_manager')
+    @patch('integrations.slack.slack_view.get_final_agent_observation')
+    async def test_wait_for_runtime_ready_polls_until_ready(
+        self,
+        mock_get_final_agent_observation,
+        mock_conversation_manager,
+        slack_update_conversation_view_v0,
+    ):
+        """Test that _wait_for_runtime_ready polls until runtime becomes ready.
+
+        This is the key fix: instead of raising an error when agent_state is LOADING,
+        we now wait for it to become ready.
+        """
+        from openhands.core.schema.agent import AgentState
+        from openhands.storage.data_models.conversation_status import ConversationStatus
+
+        # Setup: First call returns LOADING, second call returns RUNNING
+        mock_agent_loop_info_loading = MagicMock()
+        mock_agent_loop_info_loading.status = ConversationStatus.RUNNING
+        mock_agent_loop_info_loading.event_store = MagicMock()
+
+        mock_agent_loop_info_running = MagicMock()
+        mock_agent_loop_info_running.status = ConversationStatus.RUNNING
+        mock_agent_loop_info_running.event_store = MagicMock()
+
+        mock_conversation_manager.maybe_start_agent_loop = AsyncMock(
+            side_effect=[mock_agent_loop_info_loading, mock_agent_loop_info_running]
+        )
+
+        # First call: agent is LOADING, second call: agent is RUNNING
+        mock_loading_observation = MagicMock()
+        mock_loading_observation.agent_state = AgentState.LOADING
+
+        mock_running_observation = MagicMock()
+        mock_running_observation.agent_state = AgentState.RUNNING
+
+        mock_get_final_agent_observation.side_effect = [
+            [mock_loading_observation],
+            [mock_running_observation],
+        ]
+
+        # Execute with short poll interval for faster test
+        await slack_update_conversation_view_v0._wait_for_runtime_ready(
+            user_id='test-user-123',
+            conversation_init_data=MagicMock(),
+            providers_set=[],
+            poll_interval_seconds=0.01,  # Very short for testing
+        )
+
+        # Verify: Should have polled twice
+        assert mock_conversation_manager.maybe_start_agent_loop.call_count == 2
+
+    @patch('integrations.slack.slack_view.conversation_manager')
+    @patch('integrations.slack.slack_view.get_final_agent_observation')
+    async def test_wait_for_runtime_ready_polls_when_starting(
+        self,
+        mock_get_final_agent_observation,
+        mock_conversation_manager,
+        slack_update_conversation_view_v0,
+    ):
+        """Test that _wait_for_runtime_ready polls when conversation status is STARTING."""
+        from openhands.core.schema.agent import AgentState
+        from openhands.storage.data_models.conversation_status import ConversationStatus
+
+        # Setup: First call returns STARTING status, second call returns RUNNING
+        mock_agent_loop_info_starting = MagicMock()
+        mock_agent_loop_info_starting.status = ConversationStatus.STARTING
+        mock_agent_loop_info_starting.event_store = MagicMock()
+
+        mock_agent_loop_info_running = MagicMock()
+        mock_agent_loop_info_running.status = ConversationStatus.RUNNING
+        mock_agent_loop_info_running.event_store = MagicMock()
+
+        mock_conversation_manager.maybe_start_agent_loop = AsyncMock(
+            side_effect=[mock_agent_loop_info_starting, mock_agent_loop_info_running]
+        )
+
+        mock_running_observation = MagicMock()
+        mock_running_observation.agent_state = AgentState.RUNNING
+        mock_get_final_agent_observation.return_value = [mock_running_observation]
+
+        # Execute
+        await slack_update_conversation_view_v0._wait_for_runtime_ready(
+            user_id='test-user-123',
+            conversation_init_data=MagicMock(),
+            providers_set=[],
+            poll_interval_seconds=0.01,
+        )
+
+        # Verify: Should have polled twice
+        assert mock_conversation_manager.maybe_start_agent_loop.call_count == 2
+
+    @patch('integrations.slack.slack_view.conversation_manager')
+    @patch('integrations.slack.slack_view.get_final_agent_observation')
+    async def test_wait_for_runtime_ready_timeout(
+        self,
+        mock_get_final_agent_observation,
+        mock_conversation_manager,
+        slack_update_conversation_view_v0,
+    ):
+        """Test that _wait_for_runtime_ready raises exception after timeout."""
+        from integrations.slack.slack_types import StartingConvoException
+
+        from openhands.core.schema.agent import AgentState
+        from openhands.storage.data_models.conversation_status import ConversationStatus
+
+        # Setup: Always return LOADING state
+        mock_agent_loop_info = MagicMock()
+        mock_agent_loop_info.status = ConversationStatus.RUNNING
+        mock_agent_loop_info.event_store = MagicMock()
+        mock_conversation_manager.maybe_start_agent_loop = AsyncMock(
+            return_value=mock_agent_loop_info
+        )
+
+        mock_loading_observation = MagicMock()
+        mock_loading_observation.agent_state = AgentState.LOADING
+        mock_get_final_agent_observation.return_value = [mock_loading_observation]
+
+        # Execute with very short timeout
+        with pytest.raises(StartingConvoException) as exc_info:
+            await slack_update_conversation_view_v0._wait_for_runtime_ready(
+                user_id='test-user-123',
+                conversation_init_data=MagicMock(),
+                providers_set=[],
+                max_wait_seconds=0.05,  # Very short timeout for testing
+                poll_interval_seconds=0.01,
+            )
+
+        # Verify error message
+        assert 'taking too long to start' in str(exc_info.value)
+
+    @patch('integrations.slack.slack_view.conversation_manager')
+    @patch('integrations.slack.slack_view.get_final_agent_observation')
+    async def test_wait_for_runtime_ready_handles_empty_observations(
+        self,
+        mock_get_final_agent_observation,
+        mock_conversation_manager,
+        slack_update_conversation_view_v0,
+    ):
+        """Test that _wait_for_runtime_ready handles empty observations gracefully."""
+        from openhands.core.schema.agent import AgentState
+        from openhands.storage.data_models.conversation_status import ConversationStatus
+
+        # Setup: First call returns empty observations, second call returns valid observation
+        mock_agent_loop_info = MagicMock()
+        mock_agent_loop_info.status = ConversationStatus.RUNNING
+        mock_agent_loop_info.event_store = MagicMock()
+        mock_conversation_manager.maybe_start_agent_loop = AsyncMock(
+            return_value=mock_agent_loop_info
+        )
+
+        mock_running_observation = MagicMock()
+        mock_running_observation.agent_state = AgentState.RUNNING
+
+        # First call: empty observations, second call: valid observation
+        mock_get_final_agent_observation.side_effect = [[], [mock_running_observation]]
+
+        # Execute
+        await slack_update_conversation_view_v0._wait_for_runtime_ready(
+            user_id='test-user-123',
+            conversation_init_data=MagicMock(),
+            providers_set=[],
+            poll_interval_seconds=0.01,
+        )
+
+        # Verify: Should have polled twice (empty observations means not ready)
+        assert mock_conversation_manager.maybe_start_agent_loop.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Test 5: Runtime Wait Tracker (Concurrency Limits and Metrics)
+# ---------------------------------------------------------------------------
+
+
+class TestRuntimeWaitTracker:
+    """Test the runtime wait tracker for metrics."""
+
+    async def test_track_runtime_wait_increments_and_decrements(self):
+        """Test that the tracker correctly increments and decrements the counter."""
+        from integrations.slack.runtime_wait_tracker import (
+            get_current_wait_count,
+            track_runtime_wait,
+        )
+
+        initial_count = get_current_wait_count()
+
+        async with track_runtime_wait():
+            assert get_current_wait_count() == initial_count + 1
+
+        assert get_current_wait_count() == initial_count
+
+    async def test_track_runtime_wait_decrements_on_exception(self):
+        """Test that the tracker decrements even when an exception is raised."""
+        from integrations.slack.runtime_wait_tracker import (
+            get_current_wait_count,
+            track_runtime_wait,
+        )
+
+        initial_count = get_current_wait_count()
+        exception_raised = False
+
+        try:
+            async with track_runtime_wait():
+                assert get_current_wait_count() == initial_count + 1
+                raise ValueError('Test exception')
+        except ValueError:
+            exception_raised = True
+
+        assert exception_raised
+        assert get_current_wait_count() == initial_count
+
+    async def test_concurrent_waits_tracked_correctly(self):
+        """Test that multiple concurrent waits are tracked correctly."""
+        import asyncio
+
+        from integrations.slack.runtime_wait_tracker import (
+            get_current_wait_count,
+            track_runtime_wait,
+        )
+
+        initial_count = get_current_wait_count()
+        results = []
+
+        async def wait_and_record():
+            async with track_runtime_wait():
+                results.append(get_current_wait_count())
+                await asyncio.sleep(0.01)
+
+        # Run 3 concurrent waits
+        await asyncio.gather(wait_and_record(), wait_and_record(), wait_and_record())
+
+        # All three should have seen counts >= initial + 1
+        # (exact values depend on timing, but all should be > initial)
+        assert all(r > initial_count for r in results)
+        assert get_current_wait_count() == initial_count

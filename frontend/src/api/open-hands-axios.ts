@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
+import { clearLoginData, LOCAL_STORAGE_KEYS } from "#/utils/local-storage";
 
 export const openHands = axios.create({
   baseURL: `${window.location.protocol}//${import.meta.env.VITE_BACKEND_BASE_URL || window?.location.host}`,
@@ -51,6 +52,18 @@ openHands.interceptors.response.use(
     ) {
       if (window.location.pathname !== "/settings/user") {
         window.location.reload();
+      }
+    }
+
+    // Handle 401 Unauthorized errors - session has expired
+    // Clear login data so the user is redirected to login page
+    if (error.response?.status === 401) {
+      const loginMethod = localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD);
+      if (loginMethod) {
+        // Clear the stored login method - this will trigger the root-layout
+        // to redirect the user to the login page instead of showing the
+        // ReauthModal and attempting auto-login (which would fail in a loop)
+        clearLoginData();
       }
     }
 

@@ -188,6 +188,12 @@ export function WsClientProvider({
   function handleMessage(event: Record<string, unknown>) {
     handleAssistantMessage(event);
 
+    // Handle direct error responses from backend (e.g., image upload to non-vision model)
+    if (event.error === true && typeof event.message === "string") {
+      setErrorMessage(event.message);
+      return;
+    }
+
     if (isOpenHandsEvent(event)) {
       const isStatusUpdateError =
         isStatusUpdate(event) && event.type === "error";

@@ -327,6 +327,12 @@ export function ConversationWebSocketProvider({
       try {
         const event = JSON.parse(messageEvent.data);
 
+        // Handle direct error responses from backend (e.g., image upload to non-vision model)
+        if (event.error === true && typeof event.message === "string") {
+          setErrorMessage(event.message);
+          return;
+        }
+
         // Track received events for history loading (count ALL events from WebSocket)
         // Always count when loading, even if we don't have the expected count yet
         if (isLoadingHistoryMain) {
@@ -453,6 +459,12 @@ export function ConversationWebSocketProvider({
     (messageEvent: MessageEvent) => {
       try {
         const event = JSON.parse(messageEvent.data);
+
+        // Handle direct error responses from backend (e.g., image upload to non-vision model)
+        if (event.error === true && typeof event.message === "string") {
+          setErrorMessage(event.message);
+          return;
+        }
 
         // Track received events for history loading (count ALL events from WebSocket)
         // Always count when loading, even if we don't have the expected count yet

@@ -641,6 +641,116 @@ describe("Conversation WebSocket Handler", () => {
       expect(connectionCount).toBe(2);
     });
 
+    it("should handle direct error responses from backend (main websocket)", async () => {
+      // Create a mock error response with error flag and message
+      const mockErrorResponse = {
+        error: true,
+        message: "Unsupported file type: image/png for non-vision model",
+      };
+
+      // Set up MSW to send the error response when connection is established
+      mswServer.use(
+        wsLink.addEventListener("connection", ({ client, server }) => {
+          server.connect();
+          // Send the mock error response after connection
+          client.send(JSON.stringify(mockErrorResponse));
+        }),
+      );
+
+      // Render components that use both WebSocket and error message store
+      renderWithWebSocketContext(<ErrorMessageStoreComponent />);
+
+      // Initially should show "none"
+      expect(screen.getByTestId("error-message")).toHaveTextContent("none");
+
+      // Wait for connection and error response processing
+      await waitFor(() => {
+        expect(screen.getByTestId("error-message")).toHaveTextContent(
+          "Unsupported file type: image/png for non-vision model",
+        );
+      });
+    });
+
+    it("should handle direct error responses from backend (planning websocket)", async () => {
+      const planningConversationId = "planning-conversation-123";
+      const mockPlanningConversation: import("#/api/conversation-service/v1-conversation-service.types").V1AppConversation =
+        {
+          id: planningConversationId,
+          created_by_user_id: null,
+          sandbox_id: "test-sandbox-id",
+          selected_repository: null,
+          selected_branch: null,
+          git_provider: null,
+          title: null,
+          trigger: null,
+          pr_number: [],
+          llm_model: null,
+          metrics: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          sandbox_status: "RUNNING",
+          execution_status: null,
+          conversation_url: `http://localhost:3000/api/conversations/${planningConversationId}`,
+          session_api_key: "test-key",
+        };
+
+      // Create a mock error response with error flag and message
+      const mockErrorResponse = {
+        error: true,
+        message: "Planning error: Invalid file path",
+      };
+
+      // Set up MSW to send the error response when connection is established
+      mswServer.use(
+        wsLink.addEventListener("connection", ({ client, server }) => {
+          server.connect();
+          // Send the mock error response after connection
+          client.send(JSON.stringify(mockErrorResponse));
+        }),
+      );
+
+      // Render with WebSocket context including sub-conversations
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={["/test-conversation-default"]}>
+            <Routes>
+              <Route
+                path="/:conversationId"
+                element={
+                  <ConversationWebSocketProvider
+                    conversationId="test-conversation-default"
+                    conversationUrl="http://localhost:3000/api/conversations/test-conversation-default"
+                    sessionApiKey={null}
+                    subConversations={[mockPlanningConversation]}
+                    subConversationIds={[planningConversationId]}
+                  >
+                    <ErrorMessageStoreComponent />
+                  </ConversationWebSocketProvider>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+
+      // Initially should show "none"
+      expect(screen.getByTestId("error-message")).toHaveTextContent("none");
+
+      // Wait for connection and error response processing
+      await waitFor(() => {
+        expect(screen.getByTestId("error-message")).toHaveTextContent(
+          "Planning error: Invalid file path",
+        );
+      });
+    });
+
     it.todo("should track and display errors with proper metadata");
     it.todo("should set appropriate error states on connection failures");
     it.todo(

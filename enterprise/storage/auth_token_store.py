@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Dict
 
+import httpx
 from sqlalchemy import select, update
 from sqlalchemy.orm import sessionmaker
 from storage.auth_tokens import AuthTokens
@@ -13,11 +15,18 @@ from openhands.core.logger import openhands_logger as logger
 from openhands.integrations.service_types import ProviderType
 
 
+class TokenRefreshRaceError(Exception):
+    """Raised when a token refresh fails due to a race condition (another process already refreshed)."""
+
+    pass
+
+
 @dataclass
 class AuthTokenStore:
     keycloak_user_id: str
     idp: ProviderType
     a_session_maker: sessionmaker
+    max_retries: int = 3
 
     @property
     def identity_provider_value(self) -> str:
@@ -86,6 +95,10 @@ class AuthTokenStore:
         The method is designed to handle race conditions where multiple requests might attempt to refresh
         the same token simultaneously, ensuring that only one refresh call occurs per refresh token.
 
+        If a token refresh fails due to an invalid_grant error (indicating another process already
+        refreshed the token), the method will retry by re-reading from the database to get the
+        updated tokens.
+
         Args:
             check_expiration_and_refresh (Callable, optional): A function that checks if the tokens have expired
                 and attempts to refresh them. It should return a dictionary containing the new access_token, refresh_token,
@@ -96,6 +109,41 @@ class AuthTokenStore:
                 A dictionary containing the access_token, refresh_token, access_token_expires_at,
                 and refresh_token_expires_at. If no token record is found, returns `None`.
         """
+        last_error: TokenRefreshRaceError | None = None
+        for attempt in range(self.max_retries):
+            try:
+                return await self._load_tokens_with_refresh(
+                    check_expiration_and_refresh
+                )
+            except TokenRefreshRaceError as e:
+                last_error = e
+                # Another process likely refreshed the token already.
+                # Wait briefly for the other process to commit, then re-read from DB.
+                logger.info(
+                    f'Token refresh race detected for user {self.keycloak_user_id}, '
+                    f'attempt {attempt + 1}/{self.max_retries}, retrying...'
+                )
+                await asyncio.sleep(0.5)
+                # Try to load the tokens that another process may have stored
+                tokens = await self._load_tokens_without_refresh()
+                if tokens:
+                    return tokens
+                # If no tokens found, continue to next retry attempt
+
+        # All retries exhausted, raise the last error
+        logger.error(
+            f'Token refresh failed after {self.max_retries} attempts for user {self.keycloak_user_id}'
+        )
+        raise last_error  # type: ignore[misc]
+
+    async def _load_tokens_with_refresh(
+        self,
+        check_expiration_and_refresh: Callable[
+            [ProviderType, str, int, int], Awaitable[Dict[str, str | int]]
+        ]
+        | None = None,
+    ) -> Dict[str, str | int] | None:
+        """Internal method that attempts to load and refresh tokens."""
         async with self.a_session_maker() as session:
             async with session.begin():  # Ensures transaction management
                 # Lock the row while we check if we need to refresh the tokens.
@@ -116,16 +164,31 @@ class AuthTokenStore:
                 if not token_record:
                     return None
 
-                token_refresh = (
-                    await check_expiration_and_refresh(
-                        self.idp,
-                        token_record.refresh_token,
-                        token_record.access_token_expires_at,
-                        token_record.refresh_token_expires_at,
+                try:
+                    token_refresh = (
+                        await check_expiration_and_refresh(
+                            self.idp,
+                            token_record.refresh_token,
+                            token_record.access_token_expires_at,
+                            token_record.refresh_token_expires_at,
+                        )
+                        if check_expiration_and_refresh
+                        else None
                     )
-                    if check_expiration_and_refresh
-                    else None
-                )
+                except httpx.HTTPStatusError as e:
+                    # Check if this is an invalid_grant error from the IDP
+                    # This typically means another process already used this refresh token
+                    if e.response.status_code == 400:
+                        error_body = e.response.text
+                        if 'invalid_grant' in error_body.lower():
+                            logger.warning(
+                                f'Token refresh failed with invalid_grant for user '
+                                f'{self.keycloak_user_id}, likely due to race condition: {error_body}'
+                            )
+                            raise TokenRefreshRaceError(
+                                'Token refresh failed due to race condition'
+                            ) from e
+                    raise
 
                 if token_refresh:
                     await session.execute(
@@ -154,6 +217,31 @@ class AuthTokenStore:
                         'refresh_token_expires_at': token_record.refresh_token_expires_at,
                     }
                 )
+
+    async def _load_tokens_without_refresh(self) -> Dict[str, str | int] | None:
+        """Load tokens from database without attempting to refresh them.
+
+        Used after a race condition is detected to retrieve tokens that were
+        likely refreshed by another process.
+        """
+        async with self.a_session_maker() as session:
+            result = await session.execute(
+                select(AuthTokens).filter(
+                    AuthTokens.keycloak_user_id == self.keycloak_user_id,
+                    AuthTokens.identity_provider == self.identity_provider_value,
+                )
+            )
+            token_record = result.scalars().one_or_none()
+
+            if not token_record:
+                return None
+
+            return {
+                'access_token': token_record.access_token,
+                'refresh_token': token_record.refresh_token,
+                'access_token_expires_at': token_record.access_token_expires_at,
+                'refresh_token_expires_at': token_record.refresh_token_expires_at,
+            }
 
     async def is_access_token_valid(self) -> bool:
         """Check if the access token is still valid.
